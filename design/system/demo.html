@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en-GB" data-theme="business-light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Retrobrew board demo</title>
+<!-- Standalone demo of the design system. Open this file in a browser. React is loaded from a CDN for the demo only. -->
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components/bundle.css">
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="components/bundle.js"></script>
+<script>
+  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.setAttribute('data-theme', 'business-dark');
+</script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  var L = window.Retrobrew, h = React.createElement, useState = React.useState, useEffect = React.useEffect;
+  var seed = [
+    { id: 1, text: 'Should we adopt trunk-based development?', author: 'Guest A', votes: 2, mine: 0, col: 'ideas' },
+    { id: 4, text: 'How do we reduce on-call fatigue?', author: 'Guest B', votes: 1, mine: 0, col: 'ideas' },
+    { id: 5, text: 'Pairing rotation for new joiners', author: 'Guest E', votes: 0, mine: 0, col: 'ideas' },
+    { id: 2, text: 'Hiring plan for Q4', author: 'Guest C', votes: 6, mine: 0, col: 'todiscuss' },
+    { id: 6, text: 'Release notes: who writes them?', author: 'Guest D', votes: 3, mine: 0, col: 'todiscuss' },
+    { id: 3, text: 'AI coding tools policy', author: 'Guest D', votes: 5, mine: 0, col: 'discussing' },
+    { id: 7, text: 'Incident review format', author: 'Guest B', votes: 4, mine: 0, col: 'discussed' }
+  ];
+  function App() {
+    var s = useState(seed), topics = s[0], setTopics = s[1];
+    var t = useState(192), rem = t[0], setRem = t[1];
+    var total = 3, used = topics.reduce(function (a, x) { return a + x.mine; }, 0);
+    useEffect(function () { var id = setInterval(function () { setRem(function (r) { return r > 0 ? r - 1 : 0; }); }, 1000); return function () { clearInterval(id); }; }, []);
+    function start() {
+      var next = topics.filter(function (x) { return x.col === 'todiscuss'; }).sort(function (a, b) { return b.votes - a.votes; })[0];
+      if (!next) return;
+      setTopics(topics.map(function (x) { return x.col === 'discussing' ? Object.assign({}, x, { col: 'discussed' }) : x.id === next.id ? Object.assign({}, x, { col: 'discussing' }) : x; }));
+      setRem(300);
+    }
+    function add(text) { setTopics(topics.concat([{ id: Math.max.apply(null, topics.map(function (x) { return x.id; })) + 1, text: text, author: 'You', votes: 0, mine: 0, col: 'ideas' }])); }
+    function col(state) { return topics.filter(function (x) { return x.col === state; }).sort(function (a, b) { return state === 'discussed' ? 0 : b.votes - a.votes; }); }
+    function card(x) { return h(L.TopicCard, { key: x.id, text: x.text, author: x.author, number: x.id, votes: x.votes, mine: x.mine, fresh: x.fresh, state: x.col, live: x.col === 'discussing' },
+      x.col === 'discussing' ? h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' } }, h(L.DialTimer, { remaining: rem, total: 300 }), h(L.Button, { variant: 'secondary', size: 'sm', onClick: function () { setRem(rem + 60); } }, '+1 min')) : null); }
+    return h(React.Fragment, null,
+      h('div', { className: 'rb-topbar' },
+        h('div', null, h('h1', { className: 'rb-title' }, 'Engineering Lean Coffee'), h('p', { className: 'rb-sub' }, '6 people here')),
+        h('div', { style: { display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' } }, h(L.VoteBudget, { total: total, used: used }), h(L.ModeSwitch))),
+      h('div', { style: { padding: '12px 16px 0' } }, h(L.TopicInput, { id: 'rb-board-topic', onAdd: add })),
+      h('div', { className: 'rb-board' },
+        h(L.Column, { state: 'ideas' }, col('ideas').map(card)),
+        h(L.Column, { state: 'todiscuss', action: h(L.Button, { size: 'sm', onClick: start }, 'Start discussion') }, col('todiscuss').map(card)),
+        h(L.Column, { state: 'discussing', empty: 'Start a discussion to bring the top topic here.' }, col('discussing').map(card)),
+        h(L.Column, { state: 'discussed' }, col('discussed').map(card))));
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+</script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+name: gallery
+
+# The screenshot gallery for sign-off (`npm run gallery`, e2e/gallery/): every meeting screen at phone and desktop
+# widths in all four themes, uploaded as the run's `gallery` artifact (a zip with index.html and the pictures). It
+# exists to be read by a person, not to gate anything, so it runs only on request: a push to a `ci/gallery*` branch,
+# or a manual dispatch on any ref (it deploys nothing). A push to main never runs it. Same job shape as e2e.yml (pinned Playwright image, /tmp on tmpfs, the relay
+# as a container in a docker-in-docker service); read there for the reasons.
+
+# Quoted "on": YAML 1.1 tools read the bare word as the boolean true.
+"on":
+  push:
+    branches: ["ci/gallery*"]
+  workflow_dispatch:
+
+# A newer push to a ci/gallery* branch cancels that branch's older run; a dispatch is never cancelled (each has its own
+# group), nor does it cancel anything.
+concurrency:
+  group: retrobrew-gallery-${{ github.event_name == 'push' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  gallery:
+    runs-on: docker
+    timeout-minutes: 45
+    container:
+      image: mcr.microsoft.com/playwright@sha256:b0ab6f3cb99aa7803adbc14d9027ec1785fc6e433b97e134e0f8fe61683b6b53
+      options: --ipc=host --tmpfs /tmp:rw,exec,size=4g
+    services:
+      dind:
+        image: docker:28-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac
+        options: --privileged
+        env:
+          DOCKER_TLS_CERTDIR: ""
+    env:
+      CI: "true"
+      DOCKER_HOST: tcp://dind:2375
+      E2E_RELAY_UPSTREAM: dind:17777
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: docker cli
+        run: |
+          curl -fsSL -o /tmp/docker.tgz https://download.docker.com/linux/static/stable/x86_64/docker-28.3.3.tgz
+          echo "40c16bcf324f354b382d07e845e6a79e3493fc0c09b252dff9e1a46125589bff  /tmp/docker.tgz" | sha256sum -c -
+          tar xzf /tmp/docker.tgz -C /tmp
+          install /tmp/docker/docker /usr/local/bin/docker
+          for i in $(seq 1 30); do docker info >/dev/null 2>&1 && break; sleep 2; done
+          docker info >/dev/null
+
+      - name: relay
+        run: |
+          set -euo pipefail
+          image=$(sed -n "s/^export const RELAY_IMAGE = '\(.*\)';$/\1/p" e2e/relay/settings.ts)
+          [[ "$image" =~ @sha256:[0-9a-f]{64}$ ]] || { echo "no pinned relay image in e2e/relay/settings.ts" >&2; exit 1; }
+          docker create --name retrobrew-e2e-relay --publish 17777:8080 "$image"
+          docker cp e2e/relay/nostr-rs-relay.toml retrobrew-e2e-relay:/usr/src/app/config.toml
+          docker start retrobrew-e2e-relay
+
+      - name: install
+        run: npm ci
+
+      - name: gallery
+        run: npm run gallery
+
+      # Also after a failed run: a part-way gallery shows how far the walk got.
+      - name: upload gallery
+        if: always()
+        uses: actions/upload-artifact@ff15f0306b3f739f7b6fd43fb5d26cd321bd4de5 # v3
+        with:
+          name: gallery
+          path: gallery/
+          if-no-files-found: warn
+
+      - name: relay log
+        if: failure()
+        run: docker logs --tail 50 retrobrew-e2e-relay || true

@@ -1,0 +1,374 @@
+/* Fonts are self-hosted: load the five faces from your own origin before this file (the app bundles the
+   @fontsource packages). Nothing here fetches from a third-party host. */
+
+/* Mode switches: every component reads these --rb-* roles, never a mode-specific token directly.
+   Business is the default; any data-theme starting "party" swaps the personality. */
+:root {
+  --rb-font-display: var(--font-display);
+  --rb-font-body: var(--font-body);
+  --rb-font-num: var(--font-mono);
+  --rb-num-weight: 600;
+  --rb-display-weight: 800;
+  --rb-radius-card: var(--radius-card-biz);
+  --rb-radius-control: var(--radius-control-biz);
+  --rb-radius-input: var(--radius-control-biz);
+  --rb-card-edge: 0px;
+  --rb-tilt: 0deg;
+  --rb-title-size: var(--type-title-size);
+  --rb-title-line: var(--type-title-line);
+  --rb-column-size: var(--type-column-size);
+  --rb-column-line: var(--type-column-line);
+  --rb-reading-size: var(--type-topic-size);
+  --rb-reading-line: var(--type-topic-line);
+}
+[data-theme^="party"] {
+  --rb-font-display: var(--font-party-display);
+  --rb-font-body: var(--font-party-body);
+  --rb-font-num: var(--font-party-display);
+  --rb-num-weight: 400;
+  --rb-display-weight: 400;
+  --rb-radius-card: var(--radius-card-party);
+  --rb-radius-control: var(--radius-control-party);
+  --rb-radius-input: 12px;
+  --rb-card-edge: 2px;
+  --rb-tilt: 0.6deg;
+  --rb-title-size: var(--type-party-title-size);
+  --rb-title-line: var(--type-party-title-line);
+  --rb-column-size: var(--type-party-column-size);
+  --rb-column-line: var(--type-party-column-line);
+  --rb-reading-size: var(--type-party-topic-size);
+  --rb-reading-line: var(--type-party-topic-line);
+}
+
+html, body { background: var(--desk); color: var(--ink); min-height: 100%; }
+body { margin: 0; font-family: var(--rb-font-body); font-size: 15px; line-height: 1.45; }
+[data-theme^="party"] body {
+  background-image: radial-gradient(color-mix(in srgb, var(--ink) 9%, transparent) 1px, transparent 1px);
+  background-size: 6px 6px;
+}
+.rb-row { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; padding: var(--space-4); }
+.rb-stack { display: grid; gap: var(--space-3); padding: var(--space-4); align-content: start; }
+:where(.rb-btn, .rb-switch, .rb-input, .rb-choice):focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* Read by screen readers, never shown: field labels the layout makes obvious, and the live region. */
+.rb-visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ---------- Button ---------- */
+.rb-btn {
+  font: 700 13.5px/1 var(--rb-font-body); letter-spacing: 0.01em;
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: 10px 14px; border-radius: var(--rb-radius-control);
+  border: 1.5px solid transparent; cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease, background-color .12s ease;
+}
+.rb-btn:disabled { opacity: .45; cursor: not-allowed; }
+.rb-btn-primary { background: var(--primary); color: var(--on-primary); box-shadow: var(--shadow-button); }
+.rb-btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+.rb-btn-primary:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
+.rb-btn-secondary { background: var(--card); color: var(--ink); border-color: var(--border); }
+.rb-btn-secondary:hover:not(:disabled) { background: var(--sunken); }
+[data-theme^="party"] .rb-btn-secondary { background: var(--dot-3); color: var(--on-state-todiscuss); border-color: var(--ink); }
+[data-theme="party-dark"] .rb-btn-secondary { border-color: var(--dot-3); }
+/* Party keeps the sticker yellow on hover, with an offset shadow, so the dark label never ends up on a dark ground. */
+[data-theme^="party"] .rb-btn-secondary:hover:not(:disabled) { background: var(--dot-3); box-shadow: 2px 2px 0 var(--ink); }
+.rb-btn-ghost { background: transparent; color: var(--ink); }
+.rb-btn-ghost:hover:not(:disabled) { background: var(--sunken); }
+.rb-btn-danger { background: transparent; color: var(--danger); border-color: var(--danger); }
+.rb-btn-sm { padding: 7px 10px; font-size: 12.5px; }
+/* Every button is a 44px tap target; sm keeps its smaller type and side padding. */
+.rb-btn { min-height: 44px; min-width: 44px; box-sizing: border-box; }
+
+/* ---------- StateChip / Column ---------- */
+.rb-chip { white-space: nowrap; display: inline-flex; align-items: center; gap: var(--space-2); font: var(--rb-display-weight) 18px/1.2 var(--rb-font-display); letter-spacing: -0.01em; color: var(--ink); }
+.rb-chip::before { content: ""; width: 10px; height: 10px; border-radius: var(--radius-dot); background: var(--st); }
+.rb-chip-count { font: 400 13px/1 var(--rb-font-body); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+[data-theme^="party"] .rb-chip { background: var(--st); color: var(--on-st); padding: 6px 12px 7px; border-radius: 999px; font-size: 19px; border: 2px solid var(--ink); }
+[data-theme="party-dark"] .rb-chip { border-color: var(--st); }
+[data-theme^="party"] .rb-chip::before { display: none; }
+[data-theme^="party"] .rb-chip-count { color: var(--on-st); opacity: .85; }
+.rb-st-ideas { --st: var(--state-ideas); --on-st: var(--on-state-ideas); }
+.rb-st-todiscuss { --st: var(--state-todiscuss); --on-st: var(--on-state-todiscuss); }
+.rb-st-discussing { --st: var(--state-discussing); --on-st: var(--on-state-discussing); }
+.rb-st-discussed { --st: var(--state-discussed); --on-st: var(--on-state-discussed); }
+
+.rb-col { display: grid; gap: var(--space-3); align-content: start; min-width: 0; }
+.rb-col-head { flex-wrap: wrap; display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding-bottom: var(--space-2); border-bottom: 3px solid var(--st); }
+[data-theme^="party"] .rb-col-head { border-bottom: 0; }
+.rb-col-note { margin: 0; font-size: 13px; color: var(--ink-soft); }
+.rb-col-empty { font-size: 13.5px; color: var(--ink-soft); border: 1.5px dashed var(--rule); border-radius: var(--rb-radius-card); padding: var(--space-4) var(--space-3); text-align: center; }
+
+/* ---------- TopicCard ---------- */
+.rb-card {
+  position: relative; display: grid; gap: var(--space-3); padding: var(--space-3);
+  background: var(--card); color: var(--ink); border-radius: var(--rb-radius-card);
+  border: var(--rb-card-edge) solid var(--ink); border-top: 3px solid var(--st, var(--rule));
+  box-shadow: var(--shadow-card);
+}
+[data-theme^="party"] .rb-card { border-top-width: var(--rb-card-edge); border-top-color: var(--ink); }
+[data-theme="party-dark"] .rb-card { border-color: var(--rule); }
+.rb-card:nth-child(odd) { rotate: calc(var(--rb-tilt) * -1); }
+.rb-card:nth-child(even) { rotate: var(--rb-tilt); }
+.rb-card-live { box-shadow: var(--shadow-live); rotate: 0deg !important; }
+.rb-card-text { margin: 0; font-size: 16px; line-height: 22px; overflow-wrap: anywhere; padding-bottom: 1px;
+  background-image: repeating-linear-gradient(transparent 0 21px, var(--rule) 21px 22px); }
+[data-theme^="party"] .rb-card-text { background-image: none; }
+[data-theme^="party"] .rb-card-text { font-weight: 500; }
+.rb-card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); font-size: 13px; color: var(--ink-soft); }
+.rb-card-num { font-variant-numeric: tabular-nums; }
+.rb-card-actions { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
+.rb-card-edit { display: grid; gap: var(--space-2); }
+.rb-card-edit .rb-input { flex: none; width: 100%; box-sizing: border-box; min-height: 44px; }
+.rb-card-alert { margin: 0; font-size: 13px; font-weight: 700; color: var(--danger); }
+
+/* ---------- VoteDots ---------- */
+.rb-dots { display: inline-flex; align-items: center; gap: var(--space-1); }
+.rb-dot { width: 13px; height: 13px; border-radius: var(--radius-dot); box-shadow: inset 0 0 0 1px var(--dot-edge); }
+.rb-dot:nth-child(3n+1) { background: var(--dot-1); }
+.rb-dot:nth-child(3n+2) { background: var(--dot-2); }
+.rb-dot:nth-child(3n+3) { background: var(--dot-3); }
+.rb-dot-mine { outline: 2px solid var(--ink); outline-offset: 1px; }
+[data-theme^="party"] .rb-dot { width: 15px; height: 15px; mix-blend-mode: multiply; box-shadow: none; }
+[data-theme="party-dark"] .rb-dot { mix-blend-mode: screen; }
+[data-theme^="party"] .rb-dot + .rb-dot { margin-left: -8px; }
+.rb-dots-hidden { font: 400 12.5px/1 var(--rb-font-body); color: var(--ink-soft); margin-left: 2px; }
+.rb-dots-count { font: 700 12.5px/1 var(--rb-font-body); color: var(--ink-soft); margin-left: 2px; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: no-preference) {
+  .rb-dot-new { animation: rb-stick .38s cubic-bezier(.3,1.6,.5,1); }
+  @keyframes rb-stick { from { transform: scale(1.8) rotate(-25deg); opacity: 0; } }
+}
+
+/* ---------- VoteBudget ---------- */
+.rb-budget { display: inline-flex; align-items: center; gap: var(--space-2); padding: 7px 12px; border-radius: var(--rb-radius-control); background: var(--card); border: 1.5px solid var(--border); font-size: 13.5px; }
+.rb-budget b { font-weight: 700; }
+.rb-budget .rb-dot-spent { background: transparent !important; box-shadow: inset 0 0 0 1.5px var(--rule); mix-blend-mode: normal; }
+
+/* ---------- DialTimer ---------- */
+.rb-timer { display: grid; grid-template-columns: auto 1fr; gap: var(--space-3); align-items: center; }
+.rb-dial { --p: 0.64; --fill: var(--state-discussing); width: 64px; height: 64px; border-radius: var(--radius-dot);
+  background: conic-gradient(var(--fill) calc(var(--p) * 1turn), var(--rule) 0); display: grid; place-items: center; }
+.rb-dial::after { content: ""; width: 48px; height: 48px; border-radius: var(--radius-dot); background: var(--card); }
+[data-theme^="party"] .rb-dial { box-shadow: 0 0 0 2px var(--ink); }
+[data-theme="party-dark"] .rb-dial { box-shadow: none; }
+.rb-timer-num { font: var(--rb-num-weight) 28px/1 var(--rb-font-num); font-variant-numeric: tabular-nums; color: var(--ink); }
+[data-theme^="party"] .rb-timer-num { font-size: 32px; }
+.rb-timer-sub { display: block; margin-top: 4px; font: 400 12.5px/1.2 var(--rb-font-body); color: var(--ink-soft); }
+.rb-timer-warn .rb-dial { --fill: var(--timer-warn); }
+.rb-timer-warn .rb-timer-num { color: var(--timer-warn); }
+.rb-timer-up .rb-dial { --fill: var(--timer-up); --p: 1; }
+.rb-timer-up .rb-timer-num { color: var(--timer-up); }
+@media (prefers-reduced-motion: no-preference) {
+  .rb-timer-up .rb-dial { animation: rb-ring 1.2s ease-in-out 2; }
+  @keyframes rb-ring { 0%,100% { rotate: 0deg; } 15% { rotate: -9deg; } 30% { rotate: 8deg; } 45% { rotate: -5deg; } 60% { rotate: 3deg; } }
+}
+
+/* ---------- TimeUpVote ---------- */
+/* Three choices. After voting, the viewer's choice shows pressed and the buttons are disabled. */
+.rb-timeup { display: grid; gap: var(--space-3); padding: var(--space-4); background: var(--card); border-radius: var(--rb-radius-card); border: 2px solid var(--timer-up); box-shadow: var(--shadow-card); max-width: 420px; }
+.rb-sheet .rb-timeup { padding: 0; border: 0; box-shadow: none; max-width: none; background: none; }
+.rb-timeup h3 { margin: 0; font: var(--rb-display-weight) 20px/1.2 var(--rb-font-display); }
+.rb-timeup p { margin: 0; color: var(--ink-soft); font-size: 14px; }
+.rb-timeup .rb-timeup-topic { color: var(--ink); font-size: var(--rb-reading-size); line-height: var(--rb-reading-line); overflow-wrap: anywhere; }
+.rb-timeup .rb-timeup-totals { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+.rb-timeup-decision { display: grid; gap: var(--space-3); padding-top: var(--space-3); border-top: 1.5px solid var(--rule); }
+.rb-choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
+.rb-choice { display: grid; gap: 4px; justify-items: start; align-content: center; min-height: 44px; padding: 10px 12px; border-radius: var(--rb-radius-control); border: 1.5px solid var(--border); background: var(--card); color: var(--ink); font: 700 14px/1.2 var(--rb-font-body); cursor: pointer; text-align: left; }
+[data-theme^="party"] .rb-choice { border-radius: 14px; }
+.rb-choice:disabled { cursor: default; }
+.rb-choice:disabled:not([aria-pressed="true"]) { opacity: .55; }
+.rb-choice[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+
+/* ---------- TopicInput ---------- */
+.rb-add { display: flex; gap: var(--space-2); align-items: stretch; flex-wrap: wrap; }
+.rb-input { flex: 1 1 220px; min-width: 0; min-height: 44px; box-sizing: border-box; font: 400 15px/1.3 var(--rb-font-body); color: var(--ink); background: var(--sunken); border: 1.5px solid var(--border); border-radius: var(--rb-radius-input); padding: 10px 12px; }
+.rb-input::placeholder { color: var(--ink-soft); }
+.rb-add-hint { flex-basis: 100%; font-size: 12.5px; color: var(--ink-soft); margin: 0; }
+.rb-add-count { flex-basis: 100%; font-size: 12.5px; color: var(--ink-soft); margin: 0; font-variant-numeric: tabular-nums; }
+
+/* ---------- AttendeeChip ---------- */
+.rb-person { display: inline-flex; align-items: center; gap: var(--space-2); font-size: 14px; }
+.rb-avatar { position: relative; width: 30px; height: 30px; border-radius: var(--radius-dot); display: grid; place-items: center; font: 700 12px/1 var(--rb-font-body); background: var(--sunken); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--border); }
+.rb-avatar[data-presence="online"]::after { content: ""; position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; border-radius: 50%; background: var(--state-discussing); box-shadow: 0 0 0 2px var(--desk); }
+.rb-person-role { font-size: 12.5px; color: var(--ink-soft); }
+.rb-person-name { font-weight: 700; }
+.rb-hand { font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: var(--rb-radius-control); background: var(--accent-ink); color: var(--card); }
+
+/* ---------- ModeSwitch ---------- */
+.rb-switch { position: relative; display: inline-grid; grid-template-columns: 1fr 1fr; align-items: center; min-height: 44px; box-sizing: border-box; padding: 3px; border-radius: 999px; border: 1.5px solid var(--border); background: var(--card); cursor: pointer; font: inherit; color: var(--ink); isolation: isolate; }
+.rb-switch span { position: relative; z-index: 1; padding: 7px 14px; font-size: 14px; line-height: 1; transition: color .25s; }
+.rb-switch .rb-sw-biz { font-family: var(--font-display); font-weight: 800; letter-spacing: -0.01em; }
+.rb-switch .rb-sw-party { font-family: var(--font-party-display); }
+.rb-switch::before { content: ""; position: absolute; z-index: 0; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: 999px; background: var(--primary); transition: translate .42s cubic-bezier(.5,1.7,.45,.8), background-color .25s; }
+.rb-switch[aria-checked="true"]::before { translate: 100% 0; box-shadow: 2px 2px 0 var(--accent); }
+.rb-switch[aria-checked="false"] .rb-sw-biz, .rb-switch[aria-checked="true"] .rb-sw-party { color: var(--on-primary); }
+@media (prefers-reduced-motion: reduce) { .rb-switch::before { transition: none; } }
+
+/* The playful moment: entering Party jiggles every card once and misregisters the ink */
+@media (prefers-reduced-motion: no-preference) {
+  .rb-party-burst .rb-card { animation: rb-jiggle .6s cubic-bezier(.3,1.5,.5,1); }
+  .rb-party-burst .rb-chip { animation: rb-pop .5s cubic-bezier(.3,1.8,.5,1); }
+  @keyframes rb-jiggle { 0% { transform: translate(-3px,-4px) rotate(-3deg); } 40% { transform: translate(2px,1px) rotate(2deg); } 100% { transform: none; } }
+  @keyframes rb-pop { 0% { transform: scale(.6); } 60% { transform: scale(1.12); } 100% { transform: none; } }
+  .rb-business-settle .rb-card { animation: rb-settle .35s ease-out; }
+  @keyframes rb-settle { from { transform: translateY(-4px); opacity: .6; } }
+}
+
+/* ---------- Board (showcase) ---------- */
+.rb-board { display: grid; grid-template-columns: repeat(4, minmax(170px, 1fr)); gap: var(--space-6); padding: var(--space-4); overflow-x: auto; }
+.rb-topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-4) 0; }
+.rb-title { margin: 0; font: var(--rb-display-weight) 28px/1.05 var(--rb-font-display); letter-spacing: -0.02em; }
+[data-theme^="party"] .rb-title { font-size: 32px; letter-spacing: 0; }
+/* The wordmark: the name set in the display face, as on the Cover. A link or a heading. */
+.rb-wordmark { display: inline-flex; align-items: center; min-height: 44px; font: var(--rb-display-weight) 28px/1 var(--rb-font-display); letter-spacing: -0.03em; color: var(--ink); text-decoration: none; }
+[data-theme^="party"] .rb-wordmark { letter-spacing: -0.01em; }
+.rb-sub { margin: 4px 0 0; font-size: 13px; color: var(--ink-soft); }
+
+/* ---------- Badge ---------- */
+.rb-badge { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: var(--rb-radius-control); border: 1.5px solid var(--border); background: var(--sunken); color: var(--ink); font: 700 12.5px/1.2 var(--rb-font-body); white-space: nowrap; vertical-align: middle; }
+[data-theme^="party"] .rb-badge { background: var(--state-todiscuss); color: var(--on-state-todiscuss); border-color: var(--ink); }
+[data-theme="party-dark"] .rb-badge { border-color: var(--state-todiscuss); }
+
+/* ---------- Link ---------- */
+/* A link that stands on its own (a wordmark, "How Lean Coffee works") is a 44px tap target. Links inside sentences are not. */
+.rb-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink); text-underline-offset: 3px; }
+.rb-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* ---------- Field ---------- */
+/* A label above its input, an optional hint, and an inline alert for what went wrong. */
+.rb-field { display: grid; gap: var(--space-1); }
+.rb-label { font: 700 var(--type-label-size)/var(--type-label-line) var(--rb-font-body); color: var(--ink); }
+.rb-field .rb-input { flex: none; width: 100%; box-sizing: border-box; min-height: 44px; }
+.rb-hint { margin: 0; font-size: 12.5px; line-height: 1.4; color: var(--ink-soft); }
+.rb-alert { margin: 0; font-size: 13.5px; line-height: 1.4; font-weight: 700; color: var(--danger); }
+.rb-input[aria-invalid="true"] { border-color: var(--danger); }
+.rb-file { position: relative; justify-content: center; }
+.rb-file:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+.rb-file:has(input:disabled) { opacity: 0.5; cursor: not-allowed; }
+
+/* ---------- Sheet and Confirm dialog ---------- */
+/* A native modal <dialog>: the page behind is inert, Escape closes it, and Tab stays inside.
+   Phones: a sheet from the bottom. Wide: a centred dialog. */
+.rb-sheet { box-sizing: border-box; position: fixed; inset: auto 0 0 0; margin: 0; width: 100%; max-width: 100%; max-height: 90dvh; overflow: auto; overscroll-behavior: contain;
+  padding: 0; border: var(--rb-card-edge) solid var(--ink); border-bottom: 0; border-radius: var(--rb-radius-card) var(--rb-radius-card) 0 0;
+  background: var(--card); color: var(--ink); box-shadow: var(--shadow-card); }
+[data-theme="party-dark"] .rb-sheet { border-color: var(--rule); }
+.rb-sheet::backdrop { background: var(--scrim); }
+.rb-sheet-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-4) var(--space-4) var(--space-2); background: var(--card); }
+.rb-sheet-title { margin: 0; font: var(--rb-display-weight) 20px/1.2 var(--rb-font-display); letter-spacing: -0.01em; }
+.rb-sheet-body { display: grid; gap: var(--space-3); padding: 0 var(--space-4) var(--space-4); }
+.rb-sheet-body p { margin: 0; }
+.rb-confirm-body { display: grid; gap: var(--space-2); color: var(--ink); }
+.rb-confirm-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); }
+@media (min-width: 768px) {
+  .rb-sheet { inset: 0; margin: auto; width: min(520px, calc(100% - 2 * var(--space-8))); height: fit-content; max-height: calc(100dvh - 2 * var(--space-8)); border-bottom: var(--rb-card-edge) solid var(--ink); border-radius: var(--rb-radius-card); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rb-sheet[open] { animation: rb-sheet-in .18s ease-out; }
+  @keyframes rb-sheet-in { from { transform: translateY(16px); opacity: 0; } }
+}
+
+/* ---------- QR panel ---------- */
+/* Dark modules on a light ground in every theme, with the code's own 4-module quiet zone. */
+.rb-qr { justify-self: center; display: grid; place-items: center; background: var(--qr-ground); color: var(--qr-ink); border-radius: var(--rb-radius-card); line-height: 0; }
+.rb-qr svg { display: block; width: 256px; max-width: 100%; height: auto; aspect-ratio: 1; }
+
+/* ---------- Banner ---------- */
+/* One message at a time across the top of the board, below the top bar. The tone is also in the words. */
+.rb-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); padding: var(--space-3) var(--space-4);
+  border-radius: var(--rb-radius-card); border: 1.5px solid var(--border); border-left-width: 6px; background: var(--card); color: var(--ink); }
+.rb-banner-text { margin: 0; flex: 1 1 220px; font-size: 14.5px; line-height: 1.4; }
+.rb-banner-info { border-left-color: var(--state-todiscuss); }
+.rb-banner-warning { border-left-color: var(--timer-warn); }
+.rb-banner-error { border-left-color: var(--danger); }
+[data-theme^="party"] .rb-banner { border: 2px solid var(--ink); border-left-width: 8px; }
+[data-theme^="party"] .rb-banner-info { border-left-color: var(--state-ideas); }
+[data-theme^="party"] .rb-banner-warning { border-left-color: var(--timer-warn); }
+[data-theme^="party"] .rb-banner-error { border-left-color: var(--danger); }
+
+/* ---------- Switch ---------- */
+/* An on/off control: the label is the button's own text, so the whole row is the tap target. */
+.rb-toggle-field { display: grid; gap: 2px; }
+.rb-toggle { display: inline-flex; align-items: center; gap: var(--space-3); min-height: 44px; padding: 0; border: 0; background: none; color: var(--ink); font: 400 15px/1.3 var(--rb-font-body); text-align: left; cursor: pointer; }
+.rb-toggle:disabled { opacity: .45; cursor: not-allowed; }
+.rb-toggle:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--rb-radius-control); }
+.rb-toggle-track { flex: none; position: relative; width: 44px; height: 26px; border-radius: 999px; background: var(--sunken); box-shadow: inset 0 0 0 1.5px var(--border); }
+.rb-toggle-thumb { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--ink-soft); }
+.rb-toggle[aria-checked="true"] .rb-toggle-track { background: var(--primary); box-shadow: none; }
+.rb-toggle[aria-checked="true"] .rb-toggle-thumb { translate: 18px 0; background: var(--on-primary); }
+@media (prefers-reduced-motion: no-preference) {
+  .rb-toggle-track, .rb-toggle-thumb { transition: background-color .15s ease, translate .15s ease; }
+}
+.rb-toggle-field .rb-hint { padding-left: calc(44px + var(--space-3)); }
+
+/* ---------- Segmented choice ---------- */
+/* A single choice from a row of buttons, each marked with aria-pressed. It wraps onto more rows on phones. */
+.rb-segmented-field { display: grid; gap: var(--space-1); min-width: 0; }
+.rb-segmented { display: grid; grid-template-columns: repeat(auto-fit, minmax(52px, 1fr)); gap: var(--space-1); }
+.rb-segment { min-height: 44px; padding: 6px 8px; border: 1.5px solid var(--border); border-radius: var(--rb-radius-control); background: var(--card); color: var(--ink);
+  font: 700 13.5px/1.15 var(--rb-font-body); font-variant-numeric: tabular-nums; cursor: pointer; }
+.rb-segment[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+.rb-segment:disabled { opacity: .45; cursor: not-allowed; }
+.rb-segment:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* ---------- Outcome line ---------- */
+/* How a time-up vote was decided, for a few seconds. The page's live region reads it out; this is the visible copy. */
+.rb-outcome { margin: 0; padding: var(--space-2) var(--space-3); border-radius: var(--rb-radius-control); border-left: 4px solid var(--state-discussing); background: var(--sunken); color: var(--ink); font-weight: 700; }
+@media (prefers-reduced-motion: no-preference) {
+  .rb-outcome { animation: rb-outcome-in .25s ease-out; }
+  @keyframes rb-outcome-in { from { opacity: 0; transform: translateY(-4px); } }
+}
+
+/* ---------- ActionBar ---------- */
+/* The facilitator's next step. Phones: a bar stuck to the bottom of the screen holding the primary (on the right) and at
+   most one other button. Wide: a stacked block at the top of the side panel, every button shown. */
+.rb-actionbar { display: flex; gap: var(--space-2); align-items: stretch; }
+.rb-actionbar > .rb-btn { flex: 1 1 0; min-width: 0; justify-content: center; text-align: center; }
+.rb-actionbar-stack { display: grid; gap: var(--space-2); }
+.rb-actionbar-stack > .rb-btn { width: 100%; justify-content: center; text-align: center; }
+
+/* ---------- ActionList ---------- */
+/* The "More" sheet's buttons: full width, one per row. */
+.rb-action-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.rb-action-list .rb-btn { width: 100%; justify-content: center; }
+
+/* ---------- Column group heading ---------- */
+/* A sub-heading inside a column, such as "No votes yet" at the end of To discuss. */
+.rb-col-group { margin: var(--space-2) 0 0; font: 700 13px/1.3 var(--rb-font-body); color: var(--ink-soft); }
+
+/* ---------- Tabs ---------- */
+/* One column per tab in the discussion phase on phones. The selected tab is marked by its underline and weight as
+   well as its colour, and by aria-selected. */
+.rb-tabs { display: flex; border-bottom: 1.5px solid var(--rule); }
+.rb-tab { flex: 1 1 0; min-width: 0; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-1);
+  padding: 8px 6px; border: 0; border-bottom: 3px solid transparent; margin-bottom: -1.5px; background: none; color: var(--ink-soft);
+  font: 400 14px/1.2 var(--rb-font-body); cursor: pointer; }
+.rb-tab[aria-selected="true"] { color: var(--ink); font-weight: 700; border-bottom-color: var(--st, var(--primary)); }
+.rb-tab-count { font-variant-numeric: tabular-nums; }
+.rb-tab:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+/* ---------- Status strip ---------- */
+/* One tappable line on every tab: the topic in Discussing, the start of its text, and its time, with the Vote chip
+   while the time-up vote is open. */
+.rb-strip { display: flex; align-items: stretch; gap: var(--space-2); }
+.rb-strip-main { flex: 1 1 auto; min-width: 0; min-height: 44px; display: flex; align-items: center; gap: var(--space-2); padding: 6px var(--space-3);
+  border: 1.5px solid var(--border); border-left: 4px solid var(--state-discussing); border-radius: var(--rb-radius-control);
+  background: var(--card); color: var(--ink); font: 400 14px/1.2 var(--rb-font-body); text-align: left; cursor: pointer; }
+.rb-strip-main:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.rb-strip-num { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rb-strip-text { flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.rb-strip-end { flex: none; font: var(--rb-num-weight) 15px/1 var(--rb-font-num); font-variant-numeric: tabular-nums; }
+.rb-strip-up .rb-strip-main { border-left-color: var(--timer-up); }
+.rb-strip-up .rb-strip-end { color: var(--timer-up); font-family: var(--rb-font-body); font-weight: 700; }
+
+/* ---------- Ended summary ---------- */
+/* The final board as one list in two parts. Its headings borrow Party's display face, the one Party moment Business allows. */
+.rb-summary { display: grid; gap: var(--space-3); }
+.rb-summary-title { margin: var(--space-2) 0 0; font: 400 var(--type-party-column-size)/var(--type-party-column-line) var(--font-party-display); color: var(--ink); }
+.rb-summary-list { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--space-3); counter-reset: rb-summary; }
+ol.rb-summary-list > li { counter-increment: rb-summary; display: grid; grid-template-columns: 2em minmax(0, 1fr); align-items: start; gap: var(--space-2); }
+ol.rb-summary-list > li::before { content: counter(rb-summary) "."; font: var(--rb-num-weight) 18px/1.4 var(--rb-font-num); font-variant-numeric: tabular-nums; color: var(--ink-soft); text-align: right; }
+.rb-summary-none { margin: 0; color: var(--ink-soft); }
+
+/* ---------- Select ---------- */
+/* A native select styled like .rb-input, with a chevron drawn in ink. */
+.rb-select { appearance: none; width: 100%; box-sizing: border-box; min-height: 44px; padding-right: 36px; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink) 50%), linear-gradient(135deg, var(--ink) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px; background-repeat: no-repeat; }

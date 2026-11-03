@@ -1,0 +1,12 @@
+<!-- @dsCard group="Board" height=300 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Column</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var L = window.Retrobrew, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'24px',padding:'16px'}},h(L.Column,{state:'todiscuss',action:h(L.Button,{size:'sm'},'Start')},h(L.TopicCard,{text:'Hiring plan for Q4',author:'Guest C',number:2,votes:4,state:'todiscuss'}),h(L.TopicCard,{text:'How do we reduce on-call fatigue?',author:'Guest B',number:4,votes:2,state:'todiscuss'})),h(L.Column,{state:'discussed',empty:'Finished topics land here with their actions.'})));
+</script>
+</body>
+</html>

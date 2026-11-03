@@ -1,0 +1,12 @@
+<!-- @dsCard group="Actions" height=64 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Button</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var L = window.Retrobrew, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'rb-row'},h(L.Button,null,'Start discussion'),h(L.Button,{variant:'secondary'},'Merge topics'),h(L.Button,{variant:'ghost'},'Cancel'),h(L.Button,{variant:'danger'},'Delete topic'),h(L.Button,{variant:'secondary',size:'sm'},'+1 min')));
+</script>
+</body>
+</html>

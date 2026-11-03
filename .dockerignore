@@ -1,0 +1,7 @@
+.git
+node_modules
+dist
+.DS_Store
+dist-e2e
+playwright-report
+test-results

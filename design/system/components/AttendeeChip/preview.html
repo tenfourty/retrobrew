@@ -1,0 +1,12 @@
+<!-- @dsCard group="People" height=64 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>AttendeeChip</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var L = window.Retrobrew, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'rb-row',style:{gap:'20px'}},h(L.AttendeeChip,{name:'Guest A',role:'Facilitator',online:true}),h(L.AttendeeChip,{name:'Guest B',online:true,handRaised:true,queue:1}),h(L.AttendeeChip,{name:'Guest C'})));
+</script>
+</body>
+</html>

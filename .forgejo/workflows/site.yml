@@ -1,0 +1,140 @@
+name: site
+
+# Builds the static site image, pushes it to a container registry, and opens a pin PR on a
+# deployment repository that deploys its digest. Everything specific to one installation is
+# a CI variable (vars.*) or secret:
+#   vars.REGISTRY_HOST       registry host name (also used to push)
+#   vars.REGISTRY_USER       registry user
+#   vars.IMAGE_NAME          image path on the registry, without tag: owner/name
+#   vars.DEPLOY_REPO         the deployment repository the pin PR targets: owner/name
+#   vars.DEPLOY_FORK_REPO    the fork of it the pin branch is pushed to: owner/name
+#   vars.DEPLOY_BOT_USER     the account that pushes the branch and opens the PR
+#   vars.DEPLOY_BOT_EMAIL    the e-mail address on the pin commit
+#   vars.DEPLOY_HELMRELEASE  path of the file in the deployment repository holding tag and digest
+#   secrets.REGISTRY_PUSH_TOKEN, secrets.PIN_PR_TOKEN
+
+# Quoted "on": YAML 1.1 tools read the bare word as the boolean true.
+"on":
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: retrobrew-site-main
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  image:
+    runs-on: docker
+    timeout-minutes: 30
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    services:
+      dind:
+        image: docker:28-dind
+        # `docker build --network host` keeps the build on the dind's own resolver instead
+        # of the inner bridge's fallback to Google DNS.
+        options: --privileged
+        env:
+          DOCKER_TLS_CERTDIR: ""
+    env:
+      DOCKER_HOST: tcp://dind:2375
+    steps:
+      - uses: actions/checkout@v4
+
+      # The job container has no docker CLI of its own, only the dind service.
+      - name: docker cli
+        run: |
+          curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-28.3.3.tgz | tar xz -C /tmp
+          install /tmp/docker/docker /usr/local/bin/docker
+          for i in $(seq 1 30); do docker info >/dev/null 2>&1 && break; sleep 2; done
+          docker info >/dev/null
+
+      # Proves the build never resolves through Google or Cloudflare public DNS.
+      - name: dns check
+        env:
+          REGISTRY_HOST: "${{ vars.REGISTRY_HOST }}"
+        run: |
+          set -euo pipefail
+          hostconf=$(docker run --rm --network host alpine:3 cat /etc/resolv.conf)
+          printf '%s\n' "$hostconf"
+          if grep -q '8\.8\.[48]\.[48]' <<<"$hostconf"; then echo "a host-network build container would resolve via Google" >&2; exit 1; fi
+          if grep -q '1\.1\.1\.1' <<<"$hostconf"; then echo "a host-network build container would resolve via Cloudflare" >&2; exit 1; fi
+          grep -q '^nameserver ' <<<"$hostconf" || { echo "a host-network build container has no resolver at all" >&2; exit 1; }
+          docker run --rm --network host alpine:3 getent hosts "$REGISTRY_HOST" \
+            || { echo "a host-network build container cannot resolve $REGISTRY_HOST" >&2; exit 1; }
+
+      # The Dockerfile's build stage runs npm test, npm run build and npm run check:assets,
+      # so a failing test or a third-party asset host fails the image.
+      - name: build and push
+        id: build
+        env:
+          REGISTRY_PASSWORD: "${{ secrets.REGISTRY_PUSH_TOKEN }}"
+          REGISTRY_HOST: "${{ vars.REGISTRY_HOST }}"
+          REGISTRY_USER: "${{ vars.REGISTRY_USER }}"
+          IMAGE_NAME: "${{ vars.IMAGE_NAME }}"
+        run: |
+          set -eu
+          if [ -z "$REGISTRY_PASSWORD" ]; then
+            echo "REGISTRY_PUSH_TOKEN is not set on this repo" >&2
+            exit 1
+          fi
+          sha12="${GITHUB_SHA:0:12}"
+          image="${REGISTRY_HOST}/${IMAGE_NAME}:${sha12}"
+
+          printf '%s' "$REGISTRY_PASSWORD" | docker login "$REGISTRY_HOST" -u "$REGISTRY_USER" --password-stdin
+
+          docker build --network host --build-arg REVISION="$GITHUB_SHA" -t "$image" .
+          docker push "$image"
+          digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$image")
+          echo "PUBLISHED image=${image} digest=${digest#*@}"
+          echo "digest=${digest#*@}" >> "$GITHUB_OUTPUT"
+
+      # Opens the pin PR that deploys this image: a branch on a fork of the deployment
+      # repository that changes only the tag and digest in the release file. The deployment
+      # repository's own automation checks and lands it. Skipped with a notice while the
+      # PIN_PR_TOKEN secret is unset.
+      - name: open pin PR
+        env:
+          PIN_PR_TOKEN: "${{ secrets.PIN_PR_TOKEN }}"
+          DIGEST: "${{ steps.build.outputs.digest }}"
+          REGISTRY_HOST: "${{ vars.REGISTRY_HOST }}"
+          DEPLOY_REPO: "${{ vars.DEPLOY_REPO }}"
+          DEPLOY_FORK_REPO: "${{ vars.DEPLOY_FORK_REPO }}"
+          DEPLOY_BOT_USER: "${{ vars.DEPLOY_BOT_USER }}"
+          DEPLOY_BOT_EMAIL: "${{ vars.DEPLOY_BOT_EMAIL }}"
+          DEPLOY_HELMRELEASE: "${{ vars.DEPLOY_HELMRELEASE }}"
+        run: |
+          set -euo pipefail
+          if [ -z "${PIN_PR_TOKEN:-}" ]; then
+            echo "::notice::PIN_PR_TOKEN is not set: no pin PR"
+            exit 0
+          fi
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "no digest from the build step" >&2; exit 1; }
+          sha12="${GITHUB_SHA:0:12}"
+          hr="$DEPLOY_HELMRELEASE"
+          branch="retrobrew/pin-${sha12}"
+          title="chore(retrobrew): deploy retrobrew-site ${sha12} (run ${GITHUB_RUN_NUMBER} on main)"
+          # The token reaches git through a credential helper and curl through stdin, never argv.
+          git config --global credential.helper '!f() { echo "username=$DEPLOY_BOT_USER"; echo "password=$PIN_PR_TOKEN"; }; f'
+          work=$(mktemp -d)
+          git clone -q --filter=blob:none --single-branch --branch main https://${REGISTRY_HOST}/${DEPLOY_REPO}.git "$work"
+          cd "$work"
+          git checkout -q -b "$branch"
+          sed -i -E "0,/^(\s+tag: ).*/s//\1${sha12}/; 0,/^(\s+digest: )sha256:[0-9a-f]{64}/s//\1${DIGEST}/" "$hr"
+          grep -q "tag: ${sha12}" "$hr" && grep -q "digest: ${DIGEST}" "$hr" || { echo "rewriting $hr failed" >&2; exit 1; }
+          if git diff --quiet; then echo "the deployment repository already pins ${sha12}"; exit 0; fi
+          git -c user.name="$DEPLOY_BOT_USER" -c user.email="$DEPLOY_BOT_EMAIL" \
+            commit -q -m "$title" -- "$hr"
+          git push -q -f https://${REGISTRY_HOST}/${DEPLOY_FORK_REPO}.git "HEAD:refs/heads/${branch}"
+          body="Deploys ${GITHUB_REPOSITORY} ${GITHUB_SHA} (image digest ${DIGEST}), built by site.yml run ${GITHUB_RUN_NUMBER} on main. Opened by that run; changes only the tag and digest."
+          printf '{"head":"%s:%s","base":"main","title":"%s","body":"%s"}' "$DEPLOY_BOT_USER" "$branch" "$title" "$body" > pr.json
+          printf 'header = "Authorization: token %s"\n' "$PIN_PR_TOKEN" \
+            | curl -sS --fail-with-body --config - -H 'Content-Type: application/json' \
+                --data @pr.json -o pr-out.json -w '%{http_code}\n' \
+                "https://${REGISTRY_HOST}/api/v1/repos/${DEPLOY_REPO}/pulls" \
+            || { cat pr-out.json >&2; exit 1; }
+          grep -o '"html_url":"[^"]*pulls/[0-9]*"' pr-out.json | head -1

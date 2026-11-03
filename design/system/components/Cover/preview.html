@@ -1,0 +1,55 @@
+<!-- @dsCard height=300 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Cover</title>
+<style>
+  html, body { margin: 0; background: var(--desk); }
+  .cv { position: relative; width: 960px; height: 300px; overflow: hidden; background: var(--desk); }
+  .cv svg { position: absolute; inset: 0; }
+  .slab { fill: var(--primary); rx: var(--radius-card-biz); }
+  .cut { stroke: var(--desk); stroke-width: 2; }
+  .pop { fill: var(--accent); rx: var(--radius-card-party); }
+  .pass { fill: var(--dot-3); rx: var(--radius-card-party); }
+  .live { fill: var(--state-discussing); rx: var(--radius-card-party); }
+  .d1 { fill: var(--dot-1); } .d2 { fill: var(--dot-2); } .d3 { fill: var(--dot-3); }
+  .dot { stroke: var(--dot-edge); stroke-width: 1; }
+  [data-theme^="party"] .dot { mix-blend-mode: multiply; stroke: none; }
+  [data-theme="party-dark"] .dot { mix-blend-mode: normal; }
+  .txt { position: absolute; left: 48px; bottom: 44px; max-width: 440px; }
+  .name { margin: 0; font: var(--rb-display-weight) 72px/.92 var(--rb-font-display); letter-spacing: -0.03em; color: var(--ink); }
+  [data-theme^="party"] .name { letter-spacing: -0.01em; }
+  .tag { margin: 12px 0 0; font: 400 14px/1.4 var(--rb-font-body); color: var(--ink-soft); }
+</style></head>
+<body>
+<div class="cv">
+  <svg width="960" height="300" viewBox="0 0 960 300" aria-hidden="true">
+    <!-- blocks: primary slab 208x224 (space-8 x 6.5 / 7) radius-card-biz; accent 176x144 with dot-3 offset pass (+8,+8, space-2) radius-card-party; state-discussing 112x80 radius-card-party -->
+    <!-- arrangement: the mullet read left to right: a square-cornered index card (business front) beside rounded riso blocks (party back), bleeding off the right edge -->
+    <!-- pattern: literal motif, sticker dots: the votes people press onto cards; 9 discs r=12 (space-3 x 2 dia) at a space-6 pitch crossing the seam between the two modes -->
+    <!-- scales: gaps space-4 (16) and space-6 (24); radii radius-card-biz 3px, radius-card-party 14px, radius-dot 50%; card cut rules at 22px ruling like the TopicCard -->
+    <rect class="slab" x="512" y="40" width="208" height="224"/>
+    <line class="cut" x1="512" y1="106" x2="720" y2="106"/>
+    <line class="cut" x1="512" y1="128" x2="720" y2="128"/>
+    <line class="cut" x1="512" y1="150" x2="720" y2="150"/>
+    <line class="cut" x1="512" y1="172" x2="720" y2="172"/>
+    <rect class="pass" x="752" y="32" width="176" height="144"/>
+    <rect class="pop" x="744" y="24" width="176" height="144"/>
+    <rect class="live" x="744" y="192" width="112" height="80"/>
+    <rect class="pass" x="872" y="200" width="112" height="80"/>
+    <circle class="dot d1" cx="600" cy="222" r="12"/>
+    <circle class="dot d2" cx="624" cy="222" r="12"/>
+    <circle class="dot d3" cx="648" cy="222" r="12"/>
+    <circle class="dot d1" cx="696" cy="68" r="12"/>
+    <circle class="dot d3" cx="720" cy="68" r="12"/>
+    <circle class="dot d2" cx="744" cy="68" r="12"/>
+    <circle class="dot d2" cx="792" cy="120" r="12"/>
+    <circle class="dot d1" cx="816" cy="120" r="12"/>
+    <circle class="dot d3" cx="840" cy="120" r="12"/>
+  </svg>
+  <div class="txt">
+    <h1 class="name">Retrobrew</h1>
+    <p class="tag">Business at the front, party at the back.</p>
+  </div>
+</div>
+</body>
+</html>

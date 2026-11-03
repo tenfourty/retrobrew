@@ -1,0 +1,12 @@
+<!-- @dsCard group="Board" height=64 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>StateChip</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var L = window.Retrobrew, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'rb-row',style:{gap:'20px'}},h(L.StateChip,{state:'ideas',count:4}),h(L.StateChip,{state:'todiscuss',count:2}),h(L.StateChip,{state:'discussing',count:1}),h(L.StateChip,{state:'discussed',count:3})));
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+<!-- @dsCard group="Voting" height=64 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>VoteDots</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var L = window.Retrobrew, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'rb-row',style:{gap:'24px'}},h(L.VoteDots,{count:1}),h(L.VoteDots,{count:3,mine:1}),h(L.VoteDots,{count:5,showCount:true}),h(L.VoteDots,{count:11})));
+</script>
+</body>
+</html>

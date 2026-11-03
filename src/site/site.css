@@ -1,0 +1,94 @@
+/* The public pages, / and /lean-coffee/. Hand-written, with no app code, and built only from
+   the design system's tokens, --rb-* roles and component classes. tokens.css and bundle.css
+   are linked from the HTML before this file; the fonts come from our own build, below. */
+@import '@fontsource/atkinson-hyperlegible/400.css';
+@import '@fontsource/atkinson-hyperlegible/700.css';
+@import '@fontsource/bricolage-grotesque/500.css';
+@import '@fontsource/bricolage-grotesque/800.css';
+@import '@fontsource/martian-mono/400.css';
+@import '@fontsource/martian-mono/600.css';
+@import '@fontsource/bagel-fat-one/400.css';
+@import '@fontsource/dm-sans/400.css';
+@import '@fontsource/dm-sans/500.css';
+@import '@fontsource/dm-sans/700.css';
+
+/* bundle.css gives the switch a display, which would beat the hidden attribute. */
+[hidden] { display: none !important; }
+
+body { font-size: var(--rb-reading-size); line-height: var(--rb-reading-line); }
+a { color: var(--ink); text-underline-offset: 3px; }
+a:focus-visible, summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+a.rb-btn { text-decoration: none; justify-content: center; }
+/* A link that stands on its own line is a 44px tap target; links inside sentences are not. */
+.site-link { display: inline-flex; align-items: center; min-height: 44px; }
+h1, h2, h3 { font-family: var(--rb-font-display); font-weight: var(--rb-display-weight); letter-spacing: -0.01em; line-height: 1.15; }
+[data-theme^="party"] :is(h1, h2, h3) { letter-spacing: 0; }
+
+.site-wrap { box-sizing: border-box; width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 var(--space-4); }
+.site-quiet { color: var(--ink); }
+
+/* Top bar: the name is the design system's .rb-wordmark */
+.site-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding-block: var(--space-4); }
+.site-top-links { display: flex; align-items: center; gap: var(--space-4); }
+
+/* Sections */
+.site-section { padding-block: var(--space-8); }
+.site-section > h2 { margin: 0 0 var(--space-6); font-size: calc(var(--rb-title-size) * 0.75); }
+.site-hero { display: grid; gap: var(--space-8); align-items: center; }
+.site-hero h1 { margin: 0; font-size: var(--rb-title-size); line-height: var(--rb-title-line); letter-spacing: -0.02em; }
+.site-hero p { margin: var(--space-4) 0 0; }
+.site-lede { font-size: var(--rb-column-size); line-height: var(--rb-column-line); }
+.site-hero-actions { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-4); margin-top: var(--space-6); }
+.site-hero-actions a:not(.rb-btn) { align-self: center; }
+.site-small { font-size: var(--type-meta-size); line-height: var(--type-meta-line); color: var(--ink-soft); }
+
+/* The still of a board, and the step illustrations: design-system markup, hidden from assistive tech */
+.site-still { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: var(--space-4); padding: var(--space-4); background: var(--sunken); border-radius: var(--rb-radius-card); }
+.site-illo { display: grid; gap: var(--space-3); width: 100%; max-width: 280px; padding: var(--space-3); box-sizing: border-box; background: var(--sunken); border-radius: var(--rb-radius-card); }
+.site-illo .rb-input { color: var(--ink-soft); }
+.site-illo .rb-btn { pointer-events: none; }
+
+.site-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-8); }
+.site-steps h3 { margin: var(--space-4) 0 var(--space-2); font-size: var(--rb-column-size); }
+.site-steps p { margin: 0; }
+/* Side by side, each step shares its row's three tracks (picture, title, text), so every
+   picture frame is as tall as the tallest and the titles line up. Stacked steps need nothing. */
+@supports (grid-template-rows: subgrid) {
+  .site-steps > li { display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: 0; }
+  .site-steps > li > .site-illo { align-content: center; }
+}
+.site-why { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--space-6); }
+.site-why h3 { margin: 0 0 var(--space-2); font-size: var(--rb-column-size); }
+.site-why p { margin: 0; }
+
+/* FAQ: native details, so answers open without script */
+.site-faq details { border-bottom: 1px solid var(--rule); }
+.site-faq summary { display: flex; align-items: center; min-height: 44px; padding-block: var(--space-2); cursor: pointer; font-weight: 700; }
+.site-faq details > :not(summary) { margin: 0 0 var(--space-4); }
+
+/* Guide */
+.site-article { max-width: 65ch; }
+.site-article h1 { font-size: var(--rb-title-size); line-height: var(--rb-title-line); margin: var(--space-6) 0 var(--space-4); }
+.site-article h2 { font-size: calc(var(--rb-title-size) * 0.75); margin: var(--space-8) 0 var(--space-3); }
+.site-article .rb-btn { margin-block: var(--space-8); }
+
+/* Footer */
+.site-foot { border-top: 1px solid var(--rule); padding-block: var(--space-8); display: grid; gap: var(--space-4); }
+.site-foot p { margin: 0; }
+.site-foot ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.site-foot a { display: inline-flex; align-items: center; min-height: 44px; }
+
+@media (max-width: 767px) {
+  .site-top-links .site-quiet { display: none; }
+}
+@media (min-width: 768px) {
+  .site-hero { grid-template-columns: 1fr 1fr; }
+  .site-hero h1 { font-size: calc(var(--rb-title-size) * 1.375); line-height: calc(var(--rb-title-line) * 1.333); }
+  .site-hero-actions { flex-direction: row; align-items: center; }
+  .site-steps { grid-template-columns: repeat(2, 1fr); }
+  .site-why { grid-template-columns: repeat(2, 1fr); }
+  .site-foot ul { display: flex; flex-wrap: wrap; gap: var(--space-6); }
+}
+@media (min-width: 1024px) {
+  .site-steps { grid-template-columns: repeat(4, 1fr); }
+}

@@ -1,0 +1,12 @@
+<!-- @dsCard group="Board" height=250 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>TopicCard</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var L = window.Retrobrew, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,minmax(0,1fr))',gap:'16px',padding:'16px'}},h(L.TopicCard,{text:'Should we adopt trunk-based development?',author:'Guest A',number:1,votes:3,mine:1,onVote:function(){}}),h(L.TopicCard,{text:'AI coding tools policy',author:'Guest D',number:3,votes:5,state:'discussing',live:true}),h(L.TopicCard,{text:'Q4 hiring',author:'Guest C',number:7,votes:6,merged:2,state:'todiscuss',showAuthor:false})));
+</script>
+</body>
+</html>

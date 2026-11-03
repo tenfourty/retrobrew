@@ -1,0 +1,18 @@
+# The local Nostr relay for the browser battery (e2e/relay/global-setup.ts mounts it as /usr/src/app/config.toml).
+# nostr-rs-relay forwards ephemeral events (kinds 20000-29999) to subscribers and never stores them.
+
+[info]
+relay_url = "ws://127.0.0.1:17777/"
+name = "retrobrew e2e"
+description = "Local relay for Retrobrew's browser tests"
+
+[network]
+# Inside the container only. podman publishes the port on 127.0.0.1, never on other interfaces.
+address = "0.0.0.0"
+port = 8080
+
+[limits]
+# Well above the app's 48 KB event cap, so size tests exercise the app's cap rather than the relay's.
+max_event_bytes = 131072
+max_ws_message_bytes = 131072
+max_ws_frame_bytes = 131072

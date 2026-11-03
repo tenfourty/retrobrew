@@ -1,0 +1,94 @@
+body { margin: 0; background: var(--desk); color: var(--ink); font-family: var(--rb-font-body); }
+.app-panel { background: var(--card); border-radius: var(--rb-radius-card); padding: var(--space-4); display: grid; gap: var(--space-3); }
+
+/* The design system's stylesheet is a chunk shared with the landing page, and builds load it after this file. So a rule
+   here that changes a design-system element is scoped under its screen's root class (.home, .mtg), to win on
+   specificity rather than on order. */
+
+/* ---------- App home ---------- */
+.home { box-sizing: border-box; max-width: 1040px; margin: 0 auto; padding: 0 var(--space-4) var(--space-8); display: grid; gap: var(--space-4); }
+.home .home-top { padding: var(--space-4) 0 0; }
+.home-top-end { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.home-panels { display: grid; gap: var(--space-4); align-items: start; }
+.home .home-guide-top { display: none; }
+.app-panel-title { margin: 0; font: var(--rb-display-weight) var(--rb-column-size)/var(--rb-column-line) var(--rb-font-display); }
+.home-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.home-list li { display: grid; }
+.home-list-name { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); overflow-wrap: anywhere; }
+@media (min-width: 768px) {
+  .home-panels { grid-template-columns: 1fr 1fr; gap: var(--space-6); }
+  .home .home-guide-top { display: inline-flex; }
+  .home .home-guide-bottom { display: none; }
+}
+
+/* ---------- Meeting screens ---------- */
+.mtg-center { text-align: center; }
+.mtg-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+/* ---------- Meeting frame ---------- */
+.mtg { box-sizing: border-box; width: 100%; max-width: 1240px; margin: 0 auto; padding: 0 var(--space-4) var(--space-8); display: grid; gap: var(--space-4); }
+.mtg .mtg-top { padding: var(--space-4) 0 0; align-items: flex-start; }
+.mtg-heading { display: grid; gap: 2px; min-width: 0; }
+.mtg-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.mtg .rb-title { overflow-wrap: anywhere; }
+.mtg-top-end { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.mtg-people { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.mtg-people li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: 44px; }
+.mtg-sheet-section { display: grid; gap: var(--space-2); }
+.mtg-sheet-heading { margin: 0; font: 700 var(--type-label-size)/var(--type-label-line) var(--rb-font-body); color: var(--ink-soft); }
+.mtg-details summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 700; }
+.mtg-details summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.mtg-details p, .mtg-relays { margin: 0 0 var(--space-1); font-size: 13.5px; color: var(--ink-soft); }
+.mtg-relays { padding-left: var(--space-4); overflow-wrap: anywhere; }
+.mtg-sheet-topic { overflow-wrap: anywhere; font-size: var(--rb-reading-size); line-height: var(--rb-reading-line); }
+.mtg-decision { display: grid; gap: var(--space-2); justify-items: start; }
+
+/* The phone dock (the add box and the facilitator's bar) is fixed to the bottom; --mtg-bottom is its height. */
+html { scroll-padding-bottom: var(--mtg-bottom, 0px); }
+.mtg.mtg { padding-bottom: calc(var(--space-8) + var(--mtg-bottom, 0px)); }
+.mtg-body { display: grid; gap: var(--space-6); align-items: start; min-width: 0; }
+.mtg-main { display: grid; gap: var(--space-4); min-width: 0; }
+.mtg-side { position: sticky; top: var(--space-4); display: grid; gap: var(--space-4); padding: var(--space-4); max-height: calc(100dvh - 2 * var(--space-4)); overflow: auto;
+  background: var(--card); border-radius: var(--rb-radius-card); box-shadow: var(--shadow-card); }
+.mtg-side-section { display: grid; gap: var(--space-3); }
+.mtg-side-title { margin: 0; font: var(--rb-display-weight) var(--rb-column-size)/var(--rb-column-line) var(--rb-font-display); }
+.mtg-controls { display: grid; gap: var(--space-4); }
+.mtg-control-with-hint { display: grid; gap: var(--space-1); justify-items: start; }
+.mtg-controls-end { padding-top: var(--space-3); border-top: 1.5px solid var(--rule); }
+.mtg-dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; display: grid; gap: var(--space-2);
+  padding: var(--space-2) var(--space-4) calc(var(--space-2) + env(safe-area-inset-bottom)); background: var(--card); border-top: 1.5px solid var(--rule); }
+.mtg-copy-field { resize: vertical; font-family: var(--rb-font-body); }
+@media (min-width: 768px) {
+  .mtg-with-side .mtg-body { grid-template-columns: minmax(0, 1fr) 280px; }
+}
+
+.mtg-add { display: grid; gap: var(--space-1); }
+.mtg-topics { display: grid; gap: var(--space-6); align-items: start; }
+@media (min-width: 768px) {
+  .mtg-topics-with-discussed { grid-template-columns: minmax(0, 3fr) minmax(0, 1fr); }
+  /* Wide: Ideas topics wrap in a grid; the heading, the note and the empty state span it. */
+  .mtg .mtg-pinboard { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  .mtg .mtg-pinboard > :is(.rb-col-head, .rb-col-note, .rb-col-empty) { grid-column: 1 / -1; }
+}
+
+/* ---------- Discussion phase ---------- */
+/* Each column keeps at least 260px: three side by side from 828px of main area, two from 544px, else stacked. Beside the
+   facilitator's 280px panel a tablet at 768px gets one column; the DOM order (To discuss, Discussing, Discussed) stays. */
+.mtg-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-6); align-items: start; }
+.mtg-discussing { display: grid; gap: var(--space-3); align-content: start; min-width: 0; }
+.mtg-discussion { display: grid; gap: var(--space-4); min-width: 0; }
+/* Phones: the status strip and the tabs stay at the top; --mtg-top is their height, for scroll-padding. */
+html { scroll-padding-top: var(--mtg-top, 0px); }
+.mtg-sticky { position: sticky; top: 0; z-index: 4; display: grid; gap: var(--space-2); margin: 0 calc(-1 * var(--space-4)); padding: var(--space-2) var(--space-4) 0; background: var(--desk); }
+.mtg-no-timer { margin: 0; font-weight: 700; color: var(--ink-soft); }
+
+/* ---------- Joining, connecting and starting ---------- */
+.state { box-sizing: border-box; max-width: 560px; margin: 0 auto; padding: 0 var(--space-4) var(--space-8); display: grid; gap: var(--space-4); }
+.state .state-top { padding: var(--space-4) 0 0; }
+.state-panel p, .join-panel p { margin: 0; }
+.state-panel { justify-items: start; }
+
+/* ---------- Timer sound ---------- */
+.mtg-sound { display: grid; gap: var(--space-2); }
+.mtg-sound-row { display: flex; align-items: flex-end; gap: var(--space-2); }
+.mtg-sound-row > .rb-field { flex: 1 1 auto; }

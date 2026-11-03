@@ -1,0 +1,14 @@
+# OS and tooling
+.DS_Store
+node_modules/
+dist/
+
+# Playwright
+/playwright-report/
+/test-results/
+
+# Test builds for the browser battery (playwright.config.ts)
+/dist-e2e/
+
+# The screenshot gallery (npm run gallery)
+/gallery/
