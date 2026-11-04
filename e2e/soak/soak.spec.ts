@@ -1,6 +1,6 @@
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { MAX_TOPICS } from '../../src/engine/limits';
-import { collectPageErrors, hostMeeting, joinMeeting, NETWORK_WAIT, timeUpSheet } from '../helpers';
+import { collectPageErrors, hostMeeting, joinMeeting, NETWORK_WAIT, realLength, START_BUTTON, timeUpSheet } from '../helpers';
 
 // Endurance: a facilitator and five participants in a
 // rehearsal meeting for 50 minutes, about a hundred time-up rounds, checking that every board stays in sync, that
@@ -172,8 +172,8 @@ test('a facilitator and five participants run a rehearsal meeting for 50 minutes
       if ((await next.count()) === 0) break;
       await next.click();
       const picker = host.getByRole('dialog', { name: /^Discuss #\d+$/ });
-      await picker.getByRole('group', { name: 'Timebox' }).getByRole('button', { name: TIMEBOX, exact: true }).click();
-      await picker.getByRole('button', { name: `Start ${TIMEBOX}` }).click();
+      await picker.getByRole('group', { name: 'Timebox' }).getByRole('button', { name: realLength(TIMEBOX) }).click();
+      await picker.getByRole('button', { name: START_BUTTON }).click();
       // Two time-up rounds per cycle: keep going once, then move on, or stop and return the topic.
       const finish = cycles % 2 === 0;
       for (const keepGoing of [true, false]) {

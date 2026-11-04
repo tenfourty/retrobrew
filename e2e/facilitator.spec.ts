@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addTopic, hostMeeting, joinMeeting, NETWORK_WAIT, stopTimer, timeUpSheet, topicCard } from './helpers';
+import { addTopic, hostMeeting, joinMeeting, NETWORK_WAIT, realLength, START_BUTTON, stopTimer, timeUpSheet, topicCard } from './helpers';
 
 const TIME_UP_WAIT = 30_000;
 
@@ -8,8 +8,8 @@ const nextStep = (page: Page) => page.getByRole('group', { name: 'Next step' });
 
 async function pickTimebox(page: Page, title: string, timebox: string): Promise<void> {
   const picker = page.getByRole('dialog', { name: title });
-  await picker.getByRole('group', { name: 'Timebox' }).getByRole('button', { name: timebox, exact: true }).click();
-  await picker.getByRole('button', { name: `Start ${timebox}` }).click();
+  await picker.getByRole('group', { name: 'Timebox' }).getByRole('button', { name: realLength(timebox) }).click();
+  await picker.getByRole('button', { name: START_BUTTON }).click();
 }
 
 test('the side panel follows the facilitator through the whole meeting', async ({ browser }) => {
@@ -147,9 +147,10 @@ test('phones fold extra actions into More, with the Facilitator controls below t
     const host = await context.newPage();
     await hostMeeting(host, 'Hana', 'Phone bar', { rehearsal: true });
     const bar = nextStep(host);
-    await expect(bar.getByRole('button')).toHaveText(['Facilitator', 'Invite people']);
-    await bar.getByRole('button', { name: 'Facilitator' }).click();
-    const sheet = host.getByRole('dialog', { name: 'Facilitator' });
+    await expect(bar.getByRole('button')).toHaveText(['More', 'Invite people']);
+    await bar.getByRole('button', { name: 'More' }).click();
+    const sheet = host.getByRole('dialog', { name: 'More' });
+    await expect(sheet.getByRole('list')).toHaveCount(0);
     await expect(sheet.getByRole('group', { name: 'Votes each' })).toBeVisible();
     await expect(sheet.getByRole('button', { name: 'End meeting' })).toBeVisible();
     await host.keyboard.press('Escape');
@@ -176,7 +177,7 @@ test('phones fold extra actions into More, with the Facilitator controls below t
     expect(await host.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
     await bar.getByRole('button', { name: 'Start discussion' }).click();
-    await expect(bar.getByRole('button')).toHaveText(['Facilitator', 'Discuss #1']);
+    await expect(bar.getByRole('button')).toHaveText(['More', 'Discuss #1']);
     await bar.getByRole('button', { name: 'Discuss #1' }).click();
     await pickTimebox(host, 'Discuss #1', '50 s');
     await bar.getByRole('button', { name: 'More' }).click();

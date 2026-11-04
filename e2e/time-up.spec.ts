@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addTopic, discussTopic, expectNoA11yViolations, hostMeeting, joinMeeting, NETWORK_WAIT, openPeople, outcomeLine, timeUpSheet, topicCard } from './helpers';
+import { addTopic, discussTopic, expectNoA11yViolations, hostMeeting, joinMeeting, NETWORK_WAIT, openPeople, outcomeLine, realLength, START_BUTTON, timeUpSheet, topicCard } from './helpers';
 
 // On a rehearsal board a timebox minute lasts 10 seconds, so "10 s" runs out in 10 seconds. Tests wait for the sheet
 // and the outcome, never for countdown digits.
@@ -23,12 +23,13 @@ test('everyone votes when time is up, the facilitator decides, and everyone sees
     const picker = host.getByRole('dialog', { name: 'Discuss #1' });
     await expect(picker.getByText('Pairing rotation')).toBeVisible();
     const timeboxes = picker.getByRole('group', { name: 'Timebox' });
-    await expect(timeboxes.getByRole('button')).toHaveText(['10 s', '20 s', '30 s', '40 s', '50 s', '1 min 40 s', '2 min 30 s', '3 min 20 s', '5 min']);
-    await expect(timeboxes.getByRole('button', { name: '50 s' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(timeboxes.getByRole('button')).toHaveText([/^1 min\s*10 s$/, /^2 min\s*20 s$/, /^3 min\s*30 s$/, /^4 min\s*40 s$/, /^5 min\s*50 s$/, /^10 min\s*1 min 40 s$/, /^15 min\s*2 min 30 s$/, /^20 min\s*3 min 20 s$/, /^30 min\s*5 min$/]);
+    await expect(timeboxes.getByRole('button', { name: '20 min, 3 min 20 s' })).toBeVisible();
+    await expect(timeboxes.getByRole('button', { name: realLength('50 s') })).toHaveAttribute('aria-pressed', 'true');
     await expect(picker.getByRole('switch', { name: 'Use real minutes' })).toHaveAttribute('aria-checked', 'false');
-    await expect(picker.getByRole('button', { name: 'Start 50 s' })).toBeFocused();
-    await timeboxes.getByRole('button', { name: '10 s', exact: true }).click();
-    await picker.getByRole('button', { name: 'Start 10 s' }).click();
+    await expect(picker.getByRole('button', { name: START_BUTTON })).toBeFocused();
+    await timeboxes.getByRole('button', { name: realLength('10 s') }).click();
+    await picker.getByRole('button', { name: START_BUTTON }).click();
 
     // Ben has the People sheet open when time runs out: it closes, and focus moves into the time-up sheet.
     await openPeople(ben);
@@ -71,7 +72,7 @@ test('everyone votes when time is up, the facilitator decides, and everyone sees
     // The buttons keep their places; only the line above them follows the votes.
     await expect(decision(host)).toHaveText(['Move on', 'Keep going for 30 more seconds']);
     await expect(hostSheet.getByText('Most votes say keep going')).toBeVisible();
-    await hostSheet.getByRole('group', { name: 'More time' }).getByRole('button', { name: '10 s', exact: true }).click();
+    await hostSheet.getByRole('group', { name: 'More time' }).getByRole('button', { name: realLength('10 s') }).click();
     await expect(decision(host)).toHaveText(['Move on', 'Keep going for 10 more seconds']);
     await decision(host).nth(1).click();
     // Together, so every page's check falls inside the line's five seconds.
@@ -83,7 +84,7 @@ test('everyone votes when time is up, the facilitator decides, and everyone sees
     // The next time up is a new round: nothing pressed, and this device's last extension preselected.
     await expect(timeUpSheet(ann)).toBeVisible({ timeout: TIME_UP_WAIT });
     await expect(timeUpSheet(ann).getByRole('button', { name: 'Keep going', exact: true })).toHaveAttribute('aria-pressed', 'false');
-    await expect(timeUpSheet(host).getByRole('group', { name: 'More time' }).getByRole('button', { name: '10 s', exact: true }))
+    await expect(timeUpSheet(host).getByRole('group', { name: 'More time' }).getByRole('button', { name: realLength('10 s') }))
       .toHaveAttribute('aria-pressed', 'true');
 
     // New timebox gives the topic a fresh timebox, which reads as keeping going.
@@ -93,8 +94,8 @@ test('everyone votes when time is up, the facilitator decides, and everyone sees
     await restart.getByRole('button', { name: 'Cancel' }).click();
     await expect(timeUpSheet(host)).toBeVisible();
     await timeUpSheet(host).getByRole('button', { name: 'New timebox' }).click();
-    await restart.getByRole('group', { name: 'Timebox' }).getByRole('button', { name: '20 s', exact: true }).click();
-    await restart.getByRole('button', { name: 'Start 20 s' }).click();
+    await restart.getByRole('group', { name: 'Timebox' }).getByRole('button', { name: realLength('20 s') }).click();
+    await restart.getByRole('button', { name: START_BUTTON }).click();
     await expect(outcomeLine(ann)).toHaveText('Keeping going for 20 more seconds', { timeout: NETWORK_WAIT });
 
     await expect(timeUpSheet(host)).toBeVisible({ timeout: TIME_UP_WAIT });
@@ -124,7 +125,7 @@ test('a rehearsal board can give one topic a timebox in real minutes', async ({ 
   await picker.getByRole('switch', { name: 'Use real minutes' }).click();
   await expect(picker.getByRole('group', { name: 'Timebox' }).getByRole('button'))
     .toHaveText(['1 min', '2 min', '3 min', '4 min', '5 min', '10 min', '15 min', '20 min', '30 min']);
-  await picker.getByRole('group', { name: 'Timebox' }).getByRole('button', { name: '1 min', exact: true }).click();
+  await picker.getByRole('group', { name: 'Timebox' }).getByRole('button', { name: realLength('1 min') }).click();
   await picker.getByRole('button', { name: 'Start 1 min' }).click();
   // A real minute: the dial's length is a full minute, not the 10 seconds a rehearsal minute lasts.
   const dial = topicCard(page, 'Retro format').getByRole('timer');

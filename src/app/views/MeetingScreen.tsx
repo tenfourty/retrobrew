@@ -85,7 +85,7 @@ export interface MeetingScreenProps {
   inviteOnOpen?: boolean;
 }
 
-export type SheetId = 'share' | 'people' | 'picker' | 'timeUp' | 'facilitator' | 'more' | 'copyText' | 'deleteTopic' | 'rename' | ConfirmId;
+export type SheetId = 'share' | 'people' | 'picker' | 'timeUp' | 'more' | 'copyText' | 'deleteTopic' | 'rename' | ConfirmId;
 
 const CONFIRMS: readonly SheetId[] = ['resetVotes', 'raiseVotes', 'endMeeting', 'backUp', 'stopTimer'];
 
@@ -306,7 +306,6 @@ export function MeetingScreen(props: MeetingScreenProps) {
     else if (id === 'backUp') openSheet('backUp', from);
     else if (id === 'decide') openVote(true, from);
     else if (id === 'stopTimer' && discussing) openSheet('stopTimer', from);
-    else if (id === 'facilitator') openSheet('facilitator', from);
     else if (id === 'more') openSheet('more', from);
     else if (id === 'finish' && discussing) send({ type: 'finishTopic', topicId: discussing.topicId });
     else if (id === 'returnTopic' && discussing) { returning.current = true; send({ type: 'returnTopic', topicId: discussing.topicId }); }
@@ -342,13 +341,13 @@ export function MeetingScreen(props: MeetingScreenProps) {
   const myName = view.attendees[you]?.name;
   const row = barRow(view);
   // Each facilitator button shows once: the controls leave out what the bar beside them (wide) or the More list above them offers.
-  const controlsFor = (where: 'wide' | 'more' | 'facilitator') => (
+  const controlsFor = (where: 'wide' | 'more') => (
     <FacilitatorControls view={view} leaveOut={controlsLeftOut(row, where)} readOnly={props.readOnly}
       send={(cmd) => { if (cmd.type === 'returnTopic') returning.current = true; send(cmd); }} onInvite={(from) => openSheet('share', from)}
       onResetVotes={(from) => openSheet('resetVotes', from)} onRaiseVotes={(votes, from) => { setRaiseTo(votes); openSheet('raiseVotes', from); }} onEndMeeting={(from) => openSheet('endMeeting', from)} sound={soundControls} />
   );
   const more = moreActions(view);
-  // Phones have no mode switch in the top bar: the facilitator finds it at the foot of the More and Facilitator sheets, and
+  // Phones have no mode switch in the top bar: the facilitator finds it at the foot of the More sheet, and
   // a guest in the People sheet (which has no bar to put it in).
   const displaySection = (
     <section className="mtg-sheet-section" aria-labelledby="sheet-display">
@@ -493,9 +492,8 @@ export function MeetingScreen(props: MeetingScreenProps) {
       ) : null}
       {facilitator ? (
         <>
-          <Sheet open={sheet === 'facilitator'} title="Facilitator" onClose={closeSheet} returnFocusTo={opener.current}>{controlsFor('facilitator')}{displaySection}</Sheet>
           <Sheet open={sheet === 'more'} title="More" onClose={closeSheet} returnFocusTo={opener.current}>
-            <ActionList actions={more.actions.map((a) => ({ label: a.label, onClick: (from) => onAction(a.id, from) }))} />
+            {more.actions.length > 0 ? <ActionList actions={more.actions.map((a) => ({ label: a.label, onClick: (from) => onAction(a.id, from) }))} /> : null}
             {more.controls ? <section className="mtg-sheet-section" aria-label="Facilitator controls">{controlsFor('more')}</section> : null}
             {displaySection}
           </Sheet>

@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import {
   addTopic, APP_PATH, discussTopic, expectNoA11yViolations, expectNoA11yViolationsInEveryTheme, hostMeeting, joinMeeting, NETWORK_WAIT,
   banner, outcomeLine, stopTimer, timeUpSheet, topicCard,
+  realLength, START_BUTTON,
 } from './helpers';
 
 // The whole Lean Coffee loop on a rehearsal board, where a timebox minute lasts 10 seconds: a facilitator and two
@@ -67,8 +68,8 @@ test('a whole meeting runs from topics to Copy as text', async ({ browser }) => 
     await stopTimer(host);
     await bar(host).getByRole('button', { name: 'Start timer' }).click();
     const restart = host.getByRole('dialog', { name: /^Start a timer for #\d+$/ });
-    await restart.getByRole('group', { name: 'Timebox' }).getByRole('button', { name: '20 s', exact: true }).click();
-    await restart.getByRole('button', { name: 'Start 20 s' }).click();
+    await restart.getByRole('group', { name: 'Timebox' }).getByRole('button', { name: realLength('20 s') }).click();
+    await restart.getByRole('button', { name: START_BUTTON }).click();
     await bar(host).getByRole('button', { name: 'Return topic' }).click();
     await expect(bar(host).getByRole('button')).toHaveText([/^Discuss #\d+$/]);
 
@@ -76,8 +77,8 @@ test('a whole meeting runs from topics to Copy as text', async ({ browser }) => 
     await bar(host).getByRole('button', { name: /^Discuss #\d+$/ }).click();
     const picker = host.getByRole('dialog', { name: /^Discuss #\d+$/ });
     await expect(picker.getByText('Hiring plan')).toBeVisible();
-    await picker.getByRole('group', { name: 'Timebox' }).getByRole('button', { name: '10 s', exact: true }).click();
-    await picker.getByRole('button', { name: 'Start 10 s' }).click();
+    await picker.getByRole('group', { name: 'Timebox' }).getByRole('button', { name: realLength('10 s') }).click();
+    await picker.getByRole('button', { name: START_BUTTON }).click();
     for (const page of [host, ann, ben]) await expect(timeUpSheet(page)).toBeVisible({ timeout: TIME_UP_WAIT });
     await timeUpSheet(ann).getByRole('button', { name: 'Keep going', exact: true }).click();
     await timeUpSheet(ben).getByRole('button', { name: 'Keep going', exact: true }).click();
@@ -85,7 +86,7 @@ test('a whole meeting runs from topics to Copy as text', async ({ browser }) => 
     await expect(timeUpSheet(ben).getByText('2 of 3 present have voted')).toBeVisible({ timeout: NETWORK_WAIT });
     await expect(decision(host)).toHaveText(['Move on', 'Keep going for 30 more seconds']);
     await expect(timeUpSheet(host).getByText('Most votes say keep going')).toBeVisible();
-    await timeUpSheet(host).getByRole('group', { name: 'More time' }).getByRole('button', { name: '10 s', exact: true }).click();
+    await timeUpSheet(host).getByRole('group', { name: 'More time' }).getByRole('button', { name: realLength('10 s') }).click();
     await decision(host).nth(1).click();
     await Promise.all([host, ann, ben].map((page) =>
       expect(outcomeLine(page)).toHaveText('Keeping going for 10 more seconds', { timeout: NETWORK_WAIT })));

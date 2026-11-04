@@ -6,7 +6,7 @@ import { Segmented } from '../../ui/segmented';
 import { Sheet } from '../../ui/sheet';
 import { TimeUpVote, type TimeUpChoice } from '../../ui/time-up-vote';
 import { DECISION_HEADING, decisionButtons, moveOnNote, NEW_TIMEBOX, recommendation, turnoutLine, VOTE_HEADING, VOTE_HINT, VOTE_TITLE } from '../decision';
-import { moreSentence, timeboxLabel } from '../lengths';
+import { moreSentence, timeboxChoice } from '../lengths';
 import { EXTENSIONS, lastExtension, rememberExtension } from '../prefs';
 
 // The time-up sheet (docs/product/mvp-screens.md, The time-up sheet). Everyone gets the ballot; the facilitator also
@@ -50,7 +50,7 @@ export function TimeUpSheet(props: {
           <>
             {leaning ? <p className="mtg-leaning">{leaning}</p> : null}
             <Segmented label="More time" value={extension} onChange={setExtension}
-              options={EXTENSIONS.map((m) => ({ value: m, label: timeboxLabel(m, minuteMs), disabled: props.readOnly }))} />
+              options={EXTENSIONS.map((m) => { const c = timeboxChoice(m, minuteMs); return { value: m, label: c.main, sub: c.real ?? undefined, name: c.name, disabled: props.readOnly }; })} />
             <div className="mtg-decision">
               <Button className="mtg-decision-primary" disabled={props.readOnly} onClick={() => decide(buttons.primary.kind)}>{buttons.primary.label}</Button>
               <Button variant="ghost" disabled={props.readOnly} onClick={() => decide(buttons.secondary.kind)}>{buttons.secondary.label}</Button>

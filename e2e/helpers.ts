@@ -109,13 +109,23 @@ export function timeUpSheet(page: Page): Locator {
   return page.getByRole('dialog', { name: "Time's up. Keep going?" });
 }
 
+// The name of a timebox or extension choice by its real length. On a rehearsal board each choice shows the meeting's
+// length with the real one beneath, and is named by both ("1 min, 10 s", "20 min, 3 min 20 s"), so a test that knows the
+// real length ("10 s") matches the name's end. Use it with `getByRole('button', { name: realLength('10 s') })`.
+export function realLength(real: string): RegExp {
+  return new RegExp(`(^|, )${real.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
+}
+
+// The picker's Start button, whose label reads the meeting's length ("Start 1 min"), not the real one.
+export const START_BUTTON = /^Start \d/;
+
 // The facilitator picks a topic to discuss from its card and starts it with one of the picker's timeboxes, by label
-// ("10 s" on a rehearsal board, where a timebox minute lasts 10 seconds).
+// by its real length ("10 s" on a rehearsal board, where a timebox minute lasts 10 seconds; the choice reads "1 min").
 export async function discussTopic(page: Page, text: string, timebox: string): Promise<void> {
   await topicCard(page, text).getByRole('button', { name: /^Discuss (?!#\d+$)/ }).click();
   const picker = page.getByRole('dialog', { name: /^Discuss #\d+$/ });
-  await picker.getByRole('group', { name: 'Timebox' }).getByRole('button', { name: timebox, exact: true }).click();
-  await picker.getByRole('button', { name: `Start ${timebox}` }).click();
+  await picker.getByRole('group', { name: 'Timebox' }).getByRole('button', { name: realLength(timebox) }).click();
+  await picker.getByRole('button', { name: START_BUTTON }).click();
   await expect(picker).toHaveCount(0);
 }
 

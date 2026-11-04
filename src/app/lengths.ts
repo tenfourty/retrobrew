@@ -23,6 +23,15 @@ export function timeboxLabel(minutes: number, minuteMs: number): string {
   return lengthLabel(minutes * minuteMs);
 }
 
+// A timebox or extension as a choice: the meeting's length as the main line ("20 min") and, on a rehearsal board, the real
+// length beneath ("3 min 20 s"). With real minutes there is one line. `name` is what assistive technology reads.
+export interface TimeboxChoice { main: string; real: string | null; name: string }
+export function timeboxChoice(minutes: number, minuteMs: number): TimeboxChoice {
+  const main = timeboxLabel(minutes, 60_000);
+  const real = minuteMs === 60_000 ? null : timeboxLabel(minutes, minuteMs);
+  return { main, real, name: real ? `${main}, ${real}` : main };
+}
+
 // In sentences: "1 minute", "3 minutes", "10 seconds".
 export function lengthSentence(ms: number): string {
   const { m, s } = split(ms);

@@ -28,13 +28,18 @@ describe('barRow', () => {
 });
 
 describe('phoneBar', () => {
-  it('shows a single secondary as it is', () => {
+  it('reads More even when the only secondary is Facilitator, whose controls the sheet holds', () => {
     const bar = phoneBar(barRow(board({ phase: 'topics' })));
-    expect([bar.primary.label, bar.other?.label]).toEqual(['Invite people', 'Facilitator']);
+    expect([bar.primary.label, bar.other?.label]).toEqual(['Invite people', 'More']);
     expect(bar.more).toEqual([]);
+    expect(bar.moreHasControls).toBe(true);
   });
 
-  it('folds two or more secondaries into More, with the Facilitator controls below them', () => {
+  it('has no other button when a row has no secondary', () => {
+    expect(phoneBar({ primary: { id: 'finish', label: 'Finish topic' }, secondaries: [] }).other).toBeNull();
+  });
+
+  it('folds the secondaries into More, with the Facilitator controls below them', () => {
     const bar = phoneBar(barRow(board({ phase: 'discussion', topics: [topic(2, 'discussing')], timer })));
     expect(bar.other?.label).toBe('More');
     expect(bar.more.map((a) => a.label)).toEqual(['Stop timer', 'Return topic']);
@@ -64,9 +69,8 @@ describe('controlsLeftOut', () => {
     expect([...controlsLeftOut(barRow(ideasView), 'wide')]).toEqual(['invite']);
     expect([...controlsLeftOut(barRow(discussingView), 'wide')]).toEqual(['returnTopic']);
   });
-  it('leaves out what the More sheet already lists, and nothing from the Facilitator sheet', () => {
+  it('leaves out what the More sheet already lists', () => {
     expect([...controlsLeftOut(barRow(ideasView), 'more')]).toEqual(['invite']);
     expect([...controlsLeftOut(barRow(discussingView), 'more')]).toEqual(['returnTopic']);
-    expect(controlsLeftOut(barRow(ideasView), 'facilitator').size).toBe(0);
   });
 });

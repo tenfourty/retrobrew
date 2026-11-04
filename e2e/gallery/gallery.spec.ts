@@ -3,7 +3,7 @@ import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import {
   addTopic, APP_PATH, banner, createMeeting, discussTopic, fillMeeting, forceSignals, hostMeeting, joinMeeting, NETWORK_WAIT, openPeople,
-  outcomeLine, THEMES, timeUpSheet, topicCard, withRehearsal,
+  outcomeLine, realLength, START_BUTTON, THEMES, timeUpSheet, topicCard, withRehearsal,
 } from '../helpers';
 
 // The screenshot gallery for design review:
@@ -66,12 +66,10 @@ function shooter(width: Width, prefix: string): (page: Page, name: string) => Pr
 
 const bar = (page: Page): Locator => page.getByRole('group', { name: 'Next step' });
 
-// A phone's extra actions sit in the bar's "More" sheet, or in its "Facilitator" sheet when the bar has no More.
+// A phone's extra actions and the Facilitator controls sit in the bar's "More" sheet.
 async function openSheet(page: Page): Promise<Locator> {
-  const more = bar(page).getByRole('button', { name: 'More' });
-  const name = (await more.count()) ? 'More' : 'Facilitator';
-  await bar(page).getByRole('button', { name }).click();
-  const sheet = page.getByRole('dialog', { name });
+  await bar(page).getByRole('button', { name: 'More' }).click();
+  const sheet = page.getByRole('dialog', { name: 'More' });
   await expect(sheet).toBeVisible();
   return sheet;
 }
@@ -186,8 +184,8 @@ async function walk(browser: Browser, width: Width): Promise<void> {
     const picker = host.getByRole('dialog', { name: /^Discuss #\d+$/ });
     await expect(picker).toBeVisible();
     await shot(host, 'timebox-picker');
-    await picker.getByRole('group', { name: 'Timebox' }).getByRole('button', { name: '50 s', exact: true }).click();
-    await picker.getByRole('button', { name: 'Start 50 s' }).click();
+    await picker.getByRole('group', { name: 'Timebox' }).getByRole('button', { name: realLength('50 s') }).click();
+    await picker.getByRole('button', { name: START_BUTTON }).click();
     await expectDiscussing(guest, width);
     await shot(guest, 'discussing-participant');
     await shot(host, 'discussing-facilitator');
@@ -200,8 +198,8 @@ async function walk(browser: Browser, width: Width): Promise<void> {
     await shot(guest, 'discussing-no-timer');
     await barAction(host, 'Start timer');
     const restart = host.getByRole('dialog', { name: /^Start a timer for #\d+$/ });
-    await restart.getByRole('group', { name: 'Timebox' }).getByRole('button', { name: '10 s', exact: true }).click();
-    await restart.getByRole('button', { name: 'Start 10 s' }).click();
+    await restart.getByRole('group', { name: 'Timebox' }).getByRole('button', { name: realLength('10 s') }).click();
+    await restart.getByRole('button', { name: START_BUTTON }).click();
     await expect(timeUpSheet(guest)).toBeVisible({ timeout: TIME_UP_WAIT });
     await expect(timeUpSheet(host)).toBeVisible({ timeout: TIME_UP_WAIT });
     await shot(guest, 'time-up-participant');

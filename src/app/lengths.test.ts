@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { REAL_MINUTE_MS, REHEARSAL_MINUTE_MS } from '../engine/discussion';
 import { TIMEBOX_MINUTES } from '../engine/types';
-import { lengthLabel, lengthSentence, longDate, moreSentence, shortDate, timeboxLabel } from './lengths';
+import { lengthLabel, lengthSentence, longDate, moreSentence, shortDate, timeboxChoice, timeboxLabel } from './lengths';
 
 describe('timebox labels', () => {
   it('reads the nine timeboxes in minutes', () => {
@@ -17,6 +17,17 @@ describe('timebox labels', () => {
   it('rounds to whole seconds', () => {
     expect(lengthLabel(9_600)).toBe('10 s');
     expect(lengthLabel(0)).toBe('0 s');
+  });
+});
+
+describe('timebox choices', () => {
+  it('is one line with real minutes', () => {
+    expect(timeboxChoice(20, REAL_MINUTE_MS)).toEqual({ main: '20 min', real: null, name: '20 min' });
+  });
+
+  it('puts the meeting length first and the real length beneath on a rehearsal board', () => {
+    expect(timeboxChoice(20, REHEARSAL_MINUTE_MS)).toEqual({ main: '20 min', real: '3 min 20 s', name: '20 min, 3 min 20 s' });
+    expect(timeboxChoice(1, REHEARSAL_MINUTE_MS)).toEqual({ main: '1 min', real: '10 s', name: '1 min, 10 s' });
   });
 });
 

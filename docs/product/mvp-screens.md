@@ -13,7 +13,8 @@ Every screen and state of the MVP app, for the facilitator and for participants,
 ### Lengths
 
 Times and timeboxes are written the same way everywhere:
-- in labels: "1 min", "5 min", "30 min"; on rehearsal boards by their real length: "10 s", "50 s", "1 min 40 s", "5 min";
+- in labels: "1 min", "5 min", "30 min"; on rehearsal boards a timebox or extension choice shows the meeting's length as its main line ("20 min") and its real length smaller beneath it ("3 min 20 s": "10 s", "50 s", "1 min 40 s"), and its accessible name is both ("20 min, 3 min 20 s"); with "Use real minutes" on, the choices are real minutes and one line;
+- the picker's Start button reads the meeting's length ("Start 20 min"); the dial, its "of …" line and the sentences below always use the real length;
 - in sentences: "1 minute", "3 minutes"; on rehearsal boards "10 seconds", "30 seconds";
 - added time, in sentences: `{more}` reads "1 more minute", "3 more minutes", or on rehearsal boards "10 more seconds", "30 more seconds";
 - countdowns: `m:ss`, in tabular numerals (`DialTimer`).
@@ -89,7 +90,7 @@ Every phase uses the same frame.
 - The meeting name (`.rb-title`, an `h1`), and the "Rehearsal" **Badge** beside it on rehearsal boards.
 - The **attendee count**, a `Button` ghost sm: "{n} here", where n is the number online. It opens the People sheet. Only the facilitator's device knows who is present, so while it is away (the "facilitator's device is offline" banner) a guest's count holds the guest alone, "1 here", and the People sheet lists everyone else as offline, rather than repeating the last list as if it were current.
 - `VoteBudget` in the topics and discussion phases: "{n} votes left", "1 vote left" or "No votes left".
-- `ModeSwitch` (wide only; on phones it lives in the People sheet and, for the facilitator, in the More and Facilitator sheets).
+- `ModeSwitch` (wide only; on phones it lives in the People sheet and, for the facilitator, in the More sheet).
 
 **Guide line** (`.rb-sub`, under the title), phrased for the viewer's role, followed by the link "How Lean Coffee works" (new tab) on a line of its own, so the guide sentence never runs into it:
 
@@ -110,7 +111,7 @@ Every phase uses the same frame.
 - Section "This device": the switch "Play the timer sound on this device" and, on phones, the `ModeSwitch`.
 - For the facilitator only, a disclosure "Connection details": each relay (updated whenever a relay's state changes) with "Connected" or "Not connected", "Refused by relays: {n}" (`OK false` replies), "Relay notices: {n}" (`NOTICE` replies) and, once there has been one, "Oversize events: {n}" (bundles still over the relays' size limit after trimming, see [sync-protocol.md](sync-protocol.md), Size). Both sessions report each relay's state as it changes (`RelayHealth`); the sheet shows the state and the counts above. The transport's held and dropped event counts are not shown: browser-battery builds expose them to the tests only (`window.__rbRelayHealth`), which print them when the ten-person burst test fails.
 
-**Facilitator controls:** the action bar and the Facilitator sheet (below). On phones the action bar sticks to the bottom of the screen; on wide screens it sits at the top of a side panel to the right of the board.
+**Facilitator controls:** the action bar and the Facilitator controls (below). On phones the action bar sticks to the bottom of the screen; on wide screens it sits at the top of a side panel to the right of the board.
 
 ## The topics phase
 
@@ -172,10 +173,10 @@ The add box stays above the columns, with the button label "Add another topic" (
 
 A Sheet:
 - Title: "Discuss #{n}" (or "Start a timer for #{n}" when the topic is already in Discussing), with the topic's text below.
-- **Timebox choice** (a **Segmented choice** of nine options): "1 min", "2 min", "3 min", "4 min", "5 min", "10 min", "15 min", "20 min", "30 min". On rehearsal boards they read "10 s", "20 s", "30 s", "40 s", "50 s", "1 min 40 s", "2 min 30 s", "3 min 20 s", "5 min".
+- **Timebox choice** (a **Segmented choice** of nine options): "1 min", "2 min", "3 min", "4 min", "5 min", "10 min", "15 min", "20 min", "30 min". On rehearsal boards each shows the same label with its real length smaller beneath: "1 min" over "10 s", "2 min" over "20 s", up to "30 min" over "5 min" (the accessible name is both, such as "20 min, 3 min 20 s"). The time-up sheet's "More time" choices read the same way.
 - The last timebox this device used is preselected, starting at 5 minutes, so starting is one tap.
-- **Rehearsal boards only:** a **Switch** "Use real minutes", off each time the picker opens, with the hint "For this topic only. Otherwise a minute here lasts 10 seconds." When it is on, the options read in real minutes.
-- `Button` primary "Start" (labelled with the choice, such as "Start 5 min"), and `Button` ghost "Cancel".
+- **Rehearsal boards only:** a **Switch** "Use real minutes", off each time the picker opens, with the hint "For this topic only. Otherwise a minute here lasts 10 seconds." When it is on, the options read in real minutes, on one line.
+- `Button` primary "Start" (labelled with the meeting's length of the choice, such as "Start 5 min", also on rehearsal boards), and `Button` ghost "Cancel".
 
 ## The time-up sheet
 
@@ -265,7 +266,7 @@ After copying, the button reads "Copied" for 2 s and the live region says "Outco
 
 **ActionBar**: one primary `Button` for the next step, then secondary `Button`s (secondary or ghost). Phones: sticky at the bottom, full width, primary on the right. Wide: at the top of the side panel, stacked, every button shown.
 
-**On phones** the bar holds the primary and at most one other button, so it fits at 320 px. A row with a single secondary shows it. A row with more shows "More" instead, which opens the **More sheet**: that row's secondaries, in order, then the Facilitator controls below them. "Facilitator" itself never appears in the phone bar when "More" does.
+**On phones** the bar holds the primary and at most one other button, so it fits at 320 px. Its other button always reads "More" when the row has any secondary (a row whose only secondary is Facilitator included), and opens the **More sheet**: that row's secondaries, if any, in order, then the Facilitator controls below them. "Facilitator" itself never appears in the phone bar.
 
 The first row that matches applies:
 
@@ -285,11 +286,11 @@ The first row that matches applies:
 - "End meeting" opens its confirmation.
 - The Ended row has no Facilitator controls and no "Facilitator" button: Votes each, Reset all votes, Show votes and Timer sound all change a board that has ended (the engine refuses them), so they are hidden, and so is the "Keep this page open" line. The People sheet keeps this device's sound switch. On phones "More" lists "Reopen meeting" and "Back up meeting file".
 - On wide screens the side panel shows the Facilitator controls in place below the action bar, so the "Facilitator" button is left out there.
-- **Each button shows once.** Where the controls sit with the bar's buttons (the wide side panel, below the bar; the phone's More sheet, below its list), they leave out "Invite people", "Back to topics", "Return topic" and "End meeting" when the bar already offers them (the primary, or a secondary on wide screens; the sheet's list on phones). The Facilitator sheet, which opens on its own, keeps all of them.
+- **Each button shows once.** Where the controls sit with the bar's buttons (the wide side panel, below the bar; the phone's More sheet, below its list), they leave out "Invite people", "Back to topics", "Return topic" and "End meeting" when the bar already offers them (the primary, or a secondary on wide screens; the sheet's list on phones). 
 
-## The Facilitator sheet
+## The Facilitator controls
 
-**Who:** the facilitator. A Sheet titled "Facilitator" on phones; a section of the side panel on wide screens. In this order:
+**Who:** the facilitator. On phones the end of the More sheet; a section of the side panel on wide screens. In this order:
 
 1. **"Invite people"** (`Button` secondary), opening the share step. Shown in every phase but Ended.
 2. **"Votes each"**, a Segmented choice of "3", "5", "8" and "10". Lower values than the current allowance are disabled. Hint: "The allowance can go up but not down". Choosing a higher one asks first (a confirmation, below) and sends `raiseAllowance` only when confirmed.
@@ -369,7 +370,7 @@ The copy in the first column is each page's `h1`; the error under "Start-up fail
 
 ## Timer sound
 
-- **Sounds.** Four short sounds made in the browser with Web Audio, so there are no files and no requests: Chime (`chime`, the default), Bell (`bell`), Wood block (`woodblock`) and Pips (`pips`). The facilitator picks the board's sound in the Facilitator sheet.
+- **Sounds.** Four short sounds made in the browser with Web Audio, so there are no files and no requests: Chime (`chime`, the default), Bell (`bell`), Wood block (`woodblock`) and Pips (`pips`). The facilitator picks the board's sound among the Facilitator controls.
 - **Where it plays.** At time up, on devices where "Play the timer sound on this device" is on. It plays once for each vote, only for a vote the page saw open: a page that arrives, or rejoins, after time up hears nothing, and a reconnect, a tab switch or a layout change never plays it again. It is on by default for the facilitator and off by default for participants. Each device stores its own setting, in its own browser, for every meeting.
 - **iOS.** The first tap on "Take part", "Vote", "Add topic" or "Play" unlocks audio for the page. After a silent rejoin, the first tap of any kind does.
 - The time-up sheet is always the main signal; the sound is extra.
@@ -400,7 +401,7 @@ While hosting, the app requests a screen wake lock (`navigator.wakeLock.request(
 
 The system has `ModeSwitch`, `Button`, `StateChip`, `Column`, `TopicCard`, `VoteDots`, `VoteBudget`, `DialTimer`, `TimeUpVote`, `TopicInput` and `AttendeeChip`. The MVP also needs:
 
-1. **Sheet:** a bottom sheet on phones and a centred dialog on wide screens, with a title, focus trap, Escape to close and a close button. Used for the share step, the People and Facilitator sheets, the timebox picker, the time-up sheet and confirmations.
+1. **Sheet:** a bottom sheet on phones and a centred dialog on wide screens, with a title, focus trap, Escape to close and a close button. Used for the share step, the People and More sheets, the timebox picker, the time-up sheet and confirmations.
 2. **Confirm dialog:** a Sheet variant with a body and a button row that puts the danger action last but one and Cancel last.
 3. **Banner:** a full-width message with info, warning and error tones and an optional action.
 4. **ActionBar:** the facilitator's sticky bottom bar (phone), holding the primary and at most one other button, and side-panel block (wide), holding every button. It hides while the add box has focus on phones.
@@ -433,8 +434,8 @@ The system has `ModeSwitch`, `Button`, `StateChip`, `Column`, `TopicCard`, `Vote
 ## Open choices made
 
 1. **Wide screens put the Facilitator controls in the side panel** under the action bar, so the "Facilitator" button is dropped there.
-2. **The per-device sound switch lives in the People sheet** for everyone, and also in the Facilitator sheet.
-3. **The `ModeSwitch` sits in the top bar on wide screens. On phones it is in the People sheet for everyone (the "n here" button, the only menu a guest has), and for the facilitator also at the foot of the More sheet and of the Facilitator sheet, under a "Display" heading,** following the design system's README.
+2. **The per-device sound switch lives in the People sheet** for everyone, and also among the Facilitator controls.
+3. **The `ModeSwitch` sits in the top bar on wide screens. On phones it is in the People sheet for everyone (the "n here" button, the only menu a guest has), and for the facilitator also at the foot of the More sheet, under a "Display" heading,** following the design system's README.
 4. **"How Lean Coffee works" opens in a new tab,** because leaving the page would stop the host or drop a participant. The app home's link opens in the same tab, because no meeting is open there.
 5. **Deleting a topic is always confirmed.**
 6. **The timebox and extension defaults are per device**: the last used, starting at 5 minutes for timeboxes and 3 for extensions.
@@ -444,6 +445,6 @@ The system has `ModeSwitch`, `Button`, `StateChip`, `Column`, `TopicCard`, `Vote
 10. **The ended view** shows one list in two parts rather than columns, at every width.
 11. **The storage notice** has a "Dismiss" action on its banner; the over-limits banner stays while the board is over a limit.
 12. **Back up meeting file** is confirmed with the existing warning about keys, and is offered in the ended state as the design says.
-13. **On phones, "More" replaces the secondaries** whenever a row has two or more, and holds the Facilitator controls too.
+13. **On phones, "More" replaces the secondaries** whenever a row has any, and holds the Facilitator controls too (the button never reads "Facilitator").
 14. **Rejoining is per meeting:** the device remembers which meetings it has joined, so a reload skips the join screen.
 15. **One name hint** is used on the create form, the join screen and the add box.

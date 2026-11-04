@@ -5,7 +5,7 @@ import { Button } from '../../ui/components';
 import { Segmented } from '../../ui/segmented';
 import { Sheet } from '../../ui/sheet';
 import { Switch } from '../../ui/switch';
-import { timeboxLabel } from '../lengths';
+import { timeboxChoice } from '../lengths';
 import { lastTimebox, rememberTimebox } from '../prefs';
 
 // The timebox picker (docs/product/mvp-screens.md, The timebox picker). The last timebox this device used is
@@ -27,7 +27,7 @@ export function TimeboxPicker(props: {
   const topic = props.topic;
   if (!topic) return null;
   const minuteMs = props.rehearsal && !real ? REHEARSAL_MINUTE_MS : REAL_MINUTE_MS;
-  const label = timeboxLabel(minutes, minuteMs);
+  const label = timeboxChoice(minutes, minuteMs).main;
   const start = () => {
     rememberTimebox(minutes);
     props.onStart(minutes, props.rehearsal && real);
@@ -38,7 +38,7 @@ export function TimeboxPicker(props: {
       initialFocus=".mtg-picker-start">
       <p className="mtg-sheet-topic">{topic.text}</p>
       <Segmented label="Timebox" columns={3} value={minutes} onChange={setMinutes}
-        options={TIMEBOX_MINUTES.map((m) => ({ value: m, label: timeboxLabel(m, minuteMs) }))} />
+        options={TIMEBOX_MINUTES.map((m) => { const c = timeboxChoice(m, minuteMs); return { value: m, label: c.main, sub: c.real ?? undefined, name: c.name }; })} />
       {props.rehearsal ? (
         <Switch label="Use real minutes" checked={real} onChange={setReal} hint="For this topic only. Otherwise a minute here lasts 10 seconds." />
       ) : null}

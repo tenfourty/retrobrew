@@ -2,6 +2,7 @@ import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import {
   addTopic, APP_PATH, banner, createMeeting, discussTopic, expectContrastWhile, expectNoA11yViolationsInEveryTheme, expectTapTargets,
   forceSignals, hostMeeting, joinMeeting, NETWORK_WAIT, THEMES, timeUpSheet, topicCard, withRehearsal,
+  realLength,
 } from './helpers';
 
 const TIME_UP_WAIT = 45_000;
@@ -216,7 +217,7 @@ test('the countdown is said once for each timer: a layout flip does not repeat i
     // Keep going for 20 more seconds: a new timer, a new round, so it counts down again at its own mark.
     const sheet = timeUpSheet(host);
     await sheet.getByRole('group', { name: 'Your vote' }).getByRole('button', { name: 'Keep going', exact: true }).click();
-    await sheet.getByRole('group', { name: 'More time' }).getByRole('button', { name: '20 s', exact: true }).click();
+    await sheet.getByRole('group', { name: 'More time' }).getByRole('button', { name: realLength('20 s') }).click();
     await sheet.locator('.mtg-decision').getByRole('button').nth(1).click();
     await expect.poll(countdowns, { timeout: NETWORK_WAIT }).toBe(2);
     await expect(timeUpSheet(ann)).toBeVisible({ timeout: TIME_UP_WAIT });
@@ -353,9 +354,9 @@ test('a facilitator on a phone: the share step, More, editing, every confirmatio
     await checkDialog(host, /^Discuss #\d+$/);
 
     // Back to topics, then End meeting with its Copy as text field (the clipboard is refused), then the ended view's sheets.
-    // (With a topic waiting, the bar's other button is Facilitator, and Back to topics sits in its controls.)
-    await bar.getByRole('button', { name: 'Facilitator' }).click();
-    await host.getByRole('dialog', { name: 'Facilitator' }).getByRole('button', { name: 'Back to topics' }).click();
+    // (With a topic waiting, the bar's other button is More, and Back to topics sits in its controls.)
+    await bar.getByRole('button', { name: 'More' }).click();
+    await host.getByRole('dialog', { name: 'More' }).getByRole('button', { name: 'Back to topics' }).click();
     await host.keyboard.press('Escape');
     await expect(bar.getByRole('button', { name: 'Start discussion' })).toBeVisible({ timeout: NETWORK_WAIT });
     await openMore();

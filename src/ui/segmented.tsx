@@ -3,6 +3,9 @@ import { useId } from 'preact/hooks';
 export interface SegmentOption<T> {
   value: T;
   label: string;
+  // A smaller second line, and the accessible name when it is given.
+  sub?: string;
+  name?: string;
   disabled?: boolean;
 }
 
@@ -19,8 +22,8 @@ export function Segmented<T extends string | number>(props: { label: string; opt
       <div className="rb-segmented" style={props.columns ? `--seg-cols:${props.columns}` : undefined}>
         {props.options.map((o) => (
           <button key={String(o.value)} type="button" className="rb-segment" aria-pressed={o.value === props.value ? 'true' : 'false'}
-            disabled={o.disabled} onClick={(e) => props.onChange(o.value, e.currentTarget)}>
-            {o.label}
+            aria-label={o.name} disabled={o.disabled} onClick={(e) => props.onChange(o.value, e.currentTarget)}>
+            {o.sub ? (<><span className="rb-segment-main">{o.label}</span><span className="rb-segment-sub">{o.sub}</span></>) : o.label}
           </button>
         ))}
       </div>

@@ -311,6 +311,8 @@ body { margin: 0; font-family: var(--rb-font-body); font-size: 15px; line-height
 .rb-segment { white-space: nowrap; }
 .rb-segment { min-height: 44px; padding: 6px 8px; border: 1.5px solid var(--border); border-radius: var(--rb-radius-control); background: var(--card); color: var(--ink);
   font: 700 13.5px/1.15 var(--rb-font-body); font-variant-numeric: tabular-nums; cursor: pointer; }
+.rb-segment-main, .rb-segment-sub { display: block; }
+.rb-segment-sub { font-size: .75em; }
 .rb-segment[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
 .rb-segment:disabled { opacity: .45; cursor: not-allowed; }
 .rb-segment:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

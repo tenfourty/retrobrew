@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addTopic, discussTopic, expectNoA11yViolations, hostMeeting, joinMeeting, NETWORK_WAIT, outcomeLine, stopTimer, timeUpSheet, topicCard } from './helpers';
+import { addTopic, discussTopic, expectNoA11yViolations, hostMeeting, joinMeeting, NETWORK_WAIT, outcomeLine, realLength, START_BUTTON, stopTimer, timeUpSheet, topicCard } from './helpers';
 
 const LONG = 'Should we adopt trunk-based development this quarter?';
 const column = (page: Page, name: string) => page.getByRole('region', { name });
@@ -53,8 +53,8 @@ test('wide screens show To discuss, Discussing and Discussed side by side', asyn
     await expect(live.getByText('No timer')).toBeVisible({ timeout: NETWORK_WAIT });
     await host.getByRole('button', { name: 'Start timer' }).click();
     const picker = host.getByRole('dialog', { name: 'Start a timer for #1' });
-    await picker.getByRole('group', { name: 'Timebox' }).getByRole('button', { name: '10 s', exact: true }).click();
-    await picker.getByRole('button', { name: 'Start 10 s' }).click();
+    await picker.getByRole('group', { name: 'Timebox' }).getByRole('button', { name: realLength('10 s') }).click();
+    await picker.getByRole('button', { name: START_BUTTON }).click();
     await expect(timeUpSheet(host)).toBeVisible({ timeout: 30_000 });
     await timeUpSheet(host).locator('.mtg-decision').getByRole('button').first().click();
     // The outcome line sits at the top of the Discussing column.

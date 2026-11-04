@@ -6,7 +6,7 @@ import { showVotesHints } from '../guide';
 import { Segmented } from '../../ui/segmented';
 import { Switch } from '../../ui/switch';
 
-// The Facilitator controls, in the order set out in docs/product/mvp-screens.md (The Facilitator sheet). A Sheet on
+// The Facilitator controls, in the order set out in docs/product/mvp-screens.md (The Facilitator controls). The end of the More sheet on
 // phones, a section of the side panel on wide screens. `sound` is the timer sound block. The handlers pass the clicked
 // button, so a sheet they open can return focus to it.
 export function FacilitatorControls(props: {
