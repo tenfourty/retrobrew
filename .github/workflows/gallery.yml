@@ -42,6 +42,8 @@ jobs:
       E2E_RELAY_UPSTREAM: host.docker.internal:17777
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       # The job container has no docker CLI of its own; it talks to the runner's Docker daemon through the mounted socket.
       - name: docker cli
@@ -78,6 +80,7 @@ jobs:
           name: gallery
           path: gallery/
           if-no-files-found: warn
+          retention-days: 14
 
       - name: relay log
         if: failure()

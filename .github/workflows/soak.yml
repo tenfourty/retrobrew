@@ -48,6 +48,8 @@ jobs:
       E2E_RELAY_UPSTREAM: host.docker.internal:17777
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       # Empty means the full run. Branch names are passed through the environment, never interpolated into the script.
       - name: length
@@ -68,7 +70,7 @@ jobs:
             minutes=3
           fi
           [[ -z "$minutes" || "$minutes" =~ ^[0-9]+$ ]] || { echo "minutes must be a number" >&2; exit 1; }
-          [[ -z "$minutes" || "$minutes" -le 70 ]] || { echo "minutes must be 70 or fewer (the job times out at 90)" >&2; exit 1; }
+          [[ -z "$minutes" || ( ${#minutes} -le 2 && 10#$minutes -le 70 ) ]] || { echo "minutes must be 70 or fewer (the job times out at 90)" >&2; exit 1; }
           echo "E2E_SOAK_MINUTES=$minutes" >> "$GITHUB_ENV"
           echo "soak length: ${minutes:-50 (full)} minutes"
 

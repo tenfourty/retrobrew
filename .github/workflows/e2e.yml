@@ -17,10 +17,10 @@ permissions:
   contents: read
 
 # A newer push to a branch, or to a pull request, cancels that ref's older run (a pull request's ref is its own, so
-# runs of different pull requests never cancel each other); a run on main is never cancelled, so every main commit
-# reports red or green.
+# runs of different pull requests never cancel each other). Each main commit gets its own group, so no main run is
+# cancelled or dropped from the queue, and every main commit reports red or green.
 concurrency:
-  group: retrobrew-e2e-${{ github.ref }}
+  group: retrobrew-e2e-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 defaults:
@@ -46,6 +46,8 @@ jobs:
       E2E_RELAY_UPSTREAM: host.docker.internal:17777
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       # The job container has no docker CLI of its own; it talks to the runner's Docker daemon through the mounted socket.
       - name: docker cli
