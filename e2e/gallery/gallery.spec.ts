@@ -217,6 +217,8 @@ async function walk(browser: Browser, width: Width): Promise<void> {
     if (width === 'phone') await host.getByRole('tab', { name: /^To discuss/ }).click();
     await discussTopic(host, 'Release notes', '50 s');
     await expectDiscussing(guest, width);
+    // The bar shows Finish topic once the host's board has the topic in Discussing; barAction looks without waiting.
+    await expect(bar(host).getByRole('button', { name: 'Finish topic' })).toBeVisible({ timeout: NETWORK_WAIT });
     await barAction(host, 'Finish topic');
     if (width === 'phone') await guest.getByRole('tab', { name: /^Discussed/ }).click();
     await shot(guest, 'discussion-with-discussed');
@@ -259,6 +261,8 @@ async function shortMeeting(browser: Browser, width: Width): Promise<void> {
     await expect(bar(host).getByRole('button', { name: 'Start discussion' })).toBeVisible();
     await barAction(host, 'Start discussion');
     await discussTopic(host, 'Release notes', '50 s');
+    // The bar shows Finish topic once the host's board has the topic in Discussing; barAction looks without waiting.
+    await expect(bar(host).getByRole('button', { name: 'Finish topic' })).toBeVisible({ timeout: NETWORK_WAIT });
     await barAction(host, 'Finish topic');
     if (width === 'phone') await host.getByRole('tab', { name: /^To discuss/ }).click();
     await shot(host, 'to-discuss-empty');
