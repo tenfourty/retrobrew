@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { banner, addTopic, canary, collectPageErrors, discussTopic, forceNoDirectPath, freezePage, hostMeeting, installNetworkHooks, joinMeeting, resumePage, timeUpSheet, topicCard } from './helpers';
+import { banner, addTopic, canary, collectPageErrors, discussTopic, forceNoDirectPath, freezePage, hostMeeting, installNetworkHooks, joinMeeting, resumePage, timeUpSheet, topicCard, waitForRegisteredDirectPeer } from './helpers';
 
 const HOST_OFFLINE = "The facilitator's device is offline.";
 
@@ -71,8 +71,9 @@ test('a participant with a live direct connection is up to date within 5 s of un
   try {
     const url = await hostMeeting(host, 'Host');
     await joinMeeting(participant, url, canary('Direct'));
-    // freezePage closes this connection, so make sure there is one to close.
+    // freezePage closes this connection, so make sure there is one to close, and that the page's room lists it.
     await expect.poll(() => participant.evaluate(() => window.__rbE2E!.connectedPeers()), { timeout: 15_000 }).toBeGreaterThan(0);
+    await waitForRegisteredDirectPeer(participant, 15_000);
     await freezePage(participant);
     const topic = canary('While locked ');
     await addTopic(host, topic);
@@ -107,6 +108,7 @@ test('a page that comes back from a lock rejoins the direct room through fresh s
     const url = await hostMeeting(host, 'Host');
     await joinMeeting(participant, url, canary('Rejoin'));
     await expect.poll(() => participant.evaluate(() => window.__rbE2E!.connectedPeers()), { timeout: 30_000 }).toBeGreaterThan(0);
+    await waitForRegisteredDirectPeer(participant);
     await freezePage(participant);
     await wait(3000);
     const unlockedAt = Date.now();

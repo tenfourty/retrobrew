@@ -6,6 +6,7 @@ import { ParticipantSession } from '../session/participant';
 import type { BoardStore } from '../store/board-store';
 import { createRoomTransport } from '../transport/connect';
 import { exposeRelayHealth } from './e2e-hooks';
+import { exposeDirectPeers } from './e2e-direct-peers';
 import { onPageVisible } from './browser';
 import { getDeviceSigner, rememberName } from './identity';
 import { Startup } from './startup';
@@ -44,6 +45,9 @@ export async function startParticipating(
   // Phones drop connections when locked: reconnect and say hello as soon as the page is back.
   const stopVisible = onPageVisible(() => session.resume());
   // Browser-battery builds only: the condition is a constant at build time, so any other build drops the hook.
+  let stopDirectPeersHook: () => void = () => undefined;
+  if (import.meta.env.MODE === 'e2e') stopDirectPeersHook = exposeDirectPeers(() => transport.directPeers?.() ?? []);
+  // Browser-battery builds only, as above: the relay health hook.
   let stopHook: () => void = () => undefined;
   if (import.meta.env.MODE === 'e2e') stopHook = exposeRelayHealth(import.meta.env.MODE, () => session.relayHealth());
   return {
@@ -52,6 +56,7 @@ export async function startParticipating(
       session.stopHeartbeat();
       stopVisible();
       stopHook();
+      stopDirectPeersHook();
       transport.leave();
     },
   };

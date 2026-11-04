@@ -92,6 +92,10 @@ const LINK_VERIFY_MS = 10_000;
 // How long after that rejoin a link still missing makes the page rejoin for the last time (trystero.ts): past Trystero's
 // 23.333 s answering TTL.
 const LINK_FINAL_MS = 26_000;
+// How soon after entering its room a hidden page may have had its host's connection cut off (trystero.ts).
+const HOST_JOIN_WINDOW_MS = 30_000;
+// How long such a page must stay hidden before its resume rejoins for a host not yet listed (trystero.ts).
+const HOST_JOIN_MIN_HIDDEN_MS = 2000;
 
 function fakeRoom(signalling: () => boolean = () => true, shared: SharedConnections = new Map()) {
   const peers: Record<string, FakeConnection> = {};
@@ -430,6 +434,64 @@ describe('createTrysteroTransport resume', () => {
     t.resume!({ host: 'host' });
     await vi.advanceTimersByTimeAsync(1000);
     expect(rooms).toHaveLength(2);
+  });
+
+  // a lock in the first instants after the connection formed, before Trystero listed the host. The room has
+  // no peer at the resume, so nothing is down and nothing was lost; the watch could never fire and nothing retried.
+  it('as a participant, rejoins on resuming from hidden when the host never joined its room, and retries while it is missing', async () => {
+    const { rooms, t, page } = setUp();
+    t.follow!(() => ({ host: 'host' }));
+    page.hide();
+    await vi.advanceTimersByTimeAsync(HOST_JOIN_MIN_HIDDEN_MS);
+    page.show();
+    t.resume!({ host: 'host' });
+    await vi.advanceTimersByTimeAsync(LEAVE_MS);
+    expect(rooms).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(LINK_VERIFY_MS + LEAVE_MS);
+    expect(rooms).toHaveLength(3);
+    await vi.advanceTimersByTimeAsync(LINK_FINAL_MS + LEAVE_MS);
+    expect(rooms).toHaveLength(4);
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(rooms).toHaveLength(4);
+  });
+
+  it('as a participant, does not rejoin for a host not yet listed when the page was hidden only briefly', async () => {
+    const { rooms, t, page } = setUp();
+    t.follow!(() => ({ host: 'host' }));
+    for (let flip = 0; flip < 3; flip++) {
+      page.hide();
+      await vi.advanceTimersByTimeAsync(HOST_JOIN_MIN_HIDDEN_MS - 1);
+      page.show();
+      t.resume!({ host: 'host' });
+      await vi.advanceTimersByTimeAsync(LEAVE_MS);
+    }
+    await vi.advanceTimersByTimeAsync(LINK_VERIFY_MS + LINK_FINAL_MS + LEAVE_MS * 2);
+    expect(rooms).toHaveLength(1);
+  });
+
+  it('as a participant, does not retry once the host is back after the resume\'s rejoin', async () => {
+    const { rooms, t, page } = setUp();
+    t.follow!(() => ({ host: 'host' }));
+    page.hide();
+    await vi.advanceTimersByTimeAsync(HOST_JOIN_MIN_HIDDEN_MS);
+    page.show();
+    t.resume!({ host: 'host' });
+    await vi.advanceTimersByTimeAsync(LEAVE_MS);
+    rooms[1]!.connect('host');
+    await vi.advanceTimersByTimeAsync(LINK_VERIFY_MS + LINK_FINAL_MS + LEAVE_MS * 2);
+    expect(rooms).toHaveLength(2);
+  });
+
+  it('as a participant, does not rejoin on resuming while it knows no host, or when the page was not hidden', async () => {
+    const { rooms, t, page } = setUp();
+    page.hide();
+    page.show();
+    t.resume!({ host: null });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(rooms).toHaveLength(1);
+    t.resume!({ host: 'host' });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(rooms).toHaveLength(1);
   });
 
   it('as a participant, rejoins when its connection to the host is found dead, and not while it knows no host', async () => {
@@ -1192,9 +1254,10 @@ describe('createTrysteroTransport resume', () => {
     expect(rooms).toHaveLength(2);
   });
 
-  it('as a participant without a direct link to the host, does not rejoin when it lost nothing in the lock', async () => {
+  it('as a participant without a direct link to the host for a while, does not rejoin when it lost nothing in the lock', async () => {
     const { rooms, t, page } = setUp();
     rooms[0]!.connect('bob');
+    await vi.advanceTimersByTimeAsync(HOST_JOIN_WINDOW_MS);
     page.hide();
     page.show();
     t.resume!({ host: 'host' });

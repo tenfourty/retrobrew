@@ -282,7 +282,7 @@ interface NetworkHooks {
 declare global {
   interface Window {
     __rbE2E?: NetworkHooks;
-    // The host's direct peers as its Trystero room reports them (src/app/e2e-direct-peers.ts); host pages only.
+    // A page's direct peers as its Trystero room reports them (src/app/e2e-direct-peers.ts); host and participant pages.
     __rbDirectPeers?: () => string[];
   }
 }
@@ -505,6 +505,17 @@ export async function useRateLimitedRelay(context: BrowserContext, ip = `context
   if (context.pages().length) throw new Error('Call useRateLimitedRelay(context) before the context opens a page');
   const to = `${RATE_LIMITED_RELAY_URL}/?ip=${encodeURIComponent(ip)}`;
   for (const relay of LOCAL_RELAY_URLS) await applyRule(context, { action: 'redirect', relay, to });
+}
+
+// Waits until the page's own Trystero room lists a direct peer, which is later than its peer connection reading
+// connected (`connectedPeers`): Trystero lists a peer once its handshake over the data channel is done. Call it before
+// freezePage when the test needs a link the page has registered (a lock 25 ms after the connection formed
+// left a room with no peer, so nothing was lost and nothing retried).
+export async function waitForRegisteredDirectPeer(page: Page, timeout = 30_000): Promise<void> {
+  await expect.poll(() => page.evaluate(() => {
+    if (!window.__rbDirectPeers) throw new Error('the page has no direct-peers hook: is this an e2e build?');
+    return window.__rbDirectPeers().length;
+  }), { timeout }).toBeGreaterThan(0);
 }
 
 // Freezes a page as a phone does when it locks: the page turns hidden, gets a freeze event, and its WebSockets and
