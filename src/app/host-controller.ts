@@ -18,8 +18,6 @@ import { ScreenWakeLock } from './wake-lock';
 export interface HostHandle {
   session: HostSession;
   record(): BoardRecord;
-  // Banner 6: navigator.storage.persist() didn't promise to keep this meeting when it was created.
-  persistenceRefused(): boolean;
   stop(): void;
 }
 
@@ -91,7 +89,6 @@ export async function startHosting(
   return {
     session,
     record: () => current,
-    persistenceRefused: () => current.persistence === 'refused',
     stop: () => {
       session.close();
       stopResume();

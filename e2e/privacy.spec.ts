@@ -22,7 +22,7 @@ test('relays never see topics or names in the clear', { tag: '@public' }, async 
     await joinMeeting(participant, url, name);
     await addTopic(participant, topic);
     await expect(topicCard(host, topic)).toBeVisible();
-    await topicCard(participant, topic).getByRole('button', { name: 'Vote', exact: true }).click();
+    await topicCard(participant, topic).getByRole('button', { name: /^Vote for / }).click();
     await expect(participant.getByText('2 votes left')).toBeVisible();
     // Let a few heartbeats and snapshots go by.
     await participant.waitForTimeout(3000);

@@ -38,6 +38,7 @@ function memoryStore(): BoardStore {
   return {
     get: async (id) => boards.get(id), put: async (r) => { boards.set(r.boardId, r); },
     notePersistence: async (id, note) => { const r = boards.get(id); if (r) boards.set(id, { ...r, persistence: note }); return boards.get(id); }, list: async () => [...boards.values()],
+    listJoined: async () => [], putJoined: async () => undefined, removeJoined: async () => undefined,
     remove: async (id) => { boards.delete(id); }, getDevice: async () => device, putDevice: async (d) => { device = d; }, close: () => undefined,
   };
 }

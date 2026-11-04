@@ -34,6 +34,7 @@
       <nav class="site-top-links" aria-label="Main">
         <a class="site-quiet site-link" href="/app/">Your meetings</a>
         <a class="rb-btn rb-btn-primary rb-btn-sm" href="/app/#start">Start a meeting</a>
+        <div><button type="button" class="rb-switch" role="switch" aria-checked="false" aria-label="Party mode" data-mode-switch hidden><span class="rb-sw-biz">Business</span><span class="rb-sw-party">Party</span></button></div>
       </nav>
     </header>
 
@@ -142,7 +143,7 @@
         </details>
         <details>
           <summary>What if the facilitator closes the tab?</summary>
-          <p>The meeting pauses. Attendees can still read the board, but nothing changes until the facilitator opens the meeting again in the same browser, from "Your meetings"; then everyone carries on where they were. The same happens if the facilitator's phone locks, so Retrobrew asks it to stay awake while the meeting runs. A private window forgets the meeting when it closes. If the browser won't promise to keep its storage, Retrobrew warns the facilitator when the meeting is created.</p>
+          <p>Attendees can still read the board, but nobody can change it until the facilitator opens the meeting again in the same browser, from "Your meetings". A running timer keeps going on the facilitator's clock, so if it runs out while they are away, time's up appears for everyone once they are back, and then everyone carries on. The same happens if the facilitator's phone locks, so Retrobrew asks it to stay awake while the meeting runs. A private window forgets the meeting when it closes. Browsers may clear saved meetings when space runs low, so Retrobrew reminds the facilitator to make a backup now and then. "Your meetings" also lists the meetings you joined on this device, so you can come back to one with a tap while the facilitator is running it, and each meeting has a Remove button if you want it off the list.</p>
         </details>
         <details>
           <summary>Does it work on a work network or VPN?</summary>
@@ -168,7 +169,6 @@
         <li><a href="/app/">Your meetings</a></li>
         <li><a href="/version.txt">Version %RB_REVISION%</a></li>
       </ul>
-      <div><button type="button" class="rb-switch" role="switch" aria-checked="false" aria-label="Party mode" data-mode-switch hidden><span class="rb-sw-biz">Business</span><span class="rb-sw-party">Party</span></button></div>
     </footer>
   </body>
 </html>

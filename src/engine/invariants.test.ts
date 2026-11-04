@@ -46,6 +46,7 @@ function randomCommand(s: BoardState, rnd: () => number): Command {
     { type: 'restartTimer', topicId: focus, minutes: pick([1, 2, 6]) },
     { type: 'returnTopic', topicId: focus },
     { type: 'finishTopic', topicId: focus },
+    { type: 'undoMoveOn', topicId: focus },
     { type: 'voteToContinue', topicId: focus, round, choice: pick(['extend', 'none', 'end', 'maybe']) },
     { type: 'extendTopic', topicId: focus, round, minutes: pick([0, 1, 3, 5, 6]) },
     { type: 'setTimerSound', sound: pick(['chime', 'bell', 'airhorn']) },

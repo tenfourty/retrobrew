@@ -114,7 +114,8 @@ A refused command changes nothing on the board. An accepted command that changes
 | `returnTopic {topicId}` | Facilitator | Topic is the one in Discussing (`notBeingDiscussed`) | Moves the topic back to To discuss and clears the timer and any vote. Its dots stay on it, so it can be picked again later |
 | `voteToContinue {topicId, round, choice}` | Anyone who has joined, facilitators included | A time-up vote is open for that topic and round (`voteClosed`); `choice` is `extend`, `none` or `end` (`badChoice`); the sender hasn't voted in this round (`alreadyVoted`) | Adds the sender to `voters` and adds one to `totals[choice]`. A ballot can't be changed or withdrawn |
 | `extendTopic {topicId, round, minutes}` | Facilitator | A time-up vote is open for that topic and round (`voteClosed`); `minutes` is 1 to 5 (`badExtension`) | Starts a fresh timer of `minutes` with the next round, using the same minute length as the timer it replaces. Closes the vote |
-| `finishTopic {topicId}` | Facilitator | Topic is the one in Discussing (`notBeingDiscussed`) | Moves the topic to Discussed, appends it to `discussedOrder`, and clears the timer and any vote. Allowed at any time, not only after time up |
+| `finishTopic {topicId}` | Facilitator | Topic is the one in Discussing (`notBeingDiscussed`) | Moves the topic to Discussed, appends it to `discussedOrder`, and clears the timer and any vote. Allowed at any time, not only after time up. When it decides an open time-up vote it also keeps the timer and the vote in `moveOnUndo`, for `undoMoveOn` |
+| `undoMoveOn {topicId}` | Facilitator | The topic was just finished by Move on from an open time-up vote, it is the last in `discussedOrder`, nothing else is in Discussing, and the meeting is in discussion (`nothingToUndo`) | Puts the topic back in Discussing, takes it off `discussedOrder`, and restores its timer (at 0:00) and the time-up vote with the votes cast so far. Works once: starting any timer, going back to topics or ending the meeting forgets it. `moveOnUndo` is part of the saved board and in no view |
 | `setTimerSound {sound}` | Facilitator | `sound` is a sound ID (`badSound`) | Sets the board's timer sound |
 
 ## Votes
@@ -147,15 +148,15 @@ Only one topic can be in Discussing. To pick another, the facilitator first fini
 - **Retrobrew never shows or stores who chose what.** The host keeps only who has voted (`voters`, to allow one ballot each) and the three totals, so no person-to-choice mapping is on any screen, in the host's storage or in a backup file. The facilitator's own choice, kept on their device to highlight their button, stays out of the saved board and backups too. This is not secrecy: someone in the meeting who records relay traffic could work out who chose what (see the accepted gaps in [sync-protocol.md](sync-protocol.md)).
 - **The facilitator decides.** The vote is advisory. The facilitator can:
   - keep going, with `extendTopic` for 1 to 5 minutes;
-  - move on, with `finishTopic`;
-  - keep talking untimed, with `stopTimer`;
+  - move on, with `finishTopic`, which `undoMoveOn` can take back for a short while;
+  - keep talking untimed, with `stopTimer` (the engine allows it with the vote open; the screens offer Stop timer only before time is up);
   - start a fresh timebox with `restartTimer`, or return the topic with `returnTopic`.
 
-  Each of these closes the vote. The screens put the option the room leans towards first (see [mvp-screens.md](mvp-screens.md)).
+  Each of these closes the vote. The screens keep each button in its place and say separately which way the room leans (see [mvp-screens.md](mvp-screens.md)).
 
 ### Finishing
 
-`finishTopic` is the only way into Discussed during a meeting, apart from `endMeeting`. Finished topics stay on the board for good: they can't be edited, deleted, voted on or moved back.
+`finishTopic` is the only way into Discussed during a meeting, apart from `endMeeting`; `undoMoveOn` takes a topic back out for a moment after a Move on. Finished topics stay on the board for good: they can't be edited, deleted, voted on or moved back.
 
 ## Ending and reopening
 
@@ -248,6 +249,7 @@ These are the exact strings for `src/engine/messages.ts`. They follow the design
 | `oneAtATime` | Another topic is already being discussed |
 | `notInToDiscuss` | Only topics in To discuss can be picked |
 | `notBeingDiscussed` | That topic isn't being discussed |
+| `nothingToUndo` | There's nothing to undo |
 | `noTimer` | There's no timer to stop |
 | `badTimebox` | Choose 1, 2, 3, 4, 5, 10, 15, 20 or 30 minutes |
 | `badExtension` | Keep going for 1 to 5 minutes |

@@ -32,6 +32,7 @@ export const MESSAGES = {
   oneAtATime: 'Another topic is already being discussed',
   notInToDiscuss: 'Only topics in To discuss can be picked',
   notBeingDiscussed: "That topic isn't being discussed",
+  nothingToUndo: "There's nothing to undo",
   noTimer: "There's no timer to stop",
   badTimebox: 'Choose 1, 2, 3, 4, 5, 10, 15, 20 or 30 minutes',
   badExtension: 'Keep going for 1 to 5 minutes',

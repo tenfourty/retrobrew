@@ -194,6 +194,26 @@ describe('host resume', () => {
     host.stop();
   });
 
+  it('sends its bundle at once on a resume right after its overdue refresh ran, not 500 ms later', async () => {
+    const room = await TestRoom.create();
+    const scheduler = new FakeScheduler(Date.now());
+    const relay = room.relay.join('host');
+    const direct = room.direct.join('host');
+    const transport = new HybridTransport(direct, relay);
+    const bundleTimes: number[] = [];
+    const broadcast = transport.broadcastRelay.bind(transport);
+    transport.broadcastRelay = (data) => { bundleTimes.push(scheduler.now()); broadcast(data); };
+    const host = room.host('host', { transport, scheduler });
+    await run(scheduler, REFRESH_MS);
+    // A frozen page's timers run just before its visibility event; the refresh they sent went to a dead socket.
+    const resumedAt = scheduler.now();
+    bundleTimes.length = 0;
+    host.resume();
+    await settle();
+    expect(bundleTimes).toEqual([resumedAt]);
+    host.stop();
+  });
+
   it('tries a failed save again at the next refresh, and sends the change once it is saved', async () => {
     const room = await TestRoom.create();
     const scheduler = new FakeScheduler(Date.now());

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { connectingCopy, COPY, hostBanner, OUTCOME_MS, participantBanner, type ParticipantSignals } from './banners';
+import { connectingCopy, COPY, hostBanner, OUTCOME_MS, outcomeMs, participantBanner, UNDO_MS, type ParticipantSignals } from './banners';
 
 const quiet: ParticipantSignals = { ended: false, connection: 'connected', mismatch: null, pendingFailed: false, staleTab: false };
 
@@ -32,6 +32,18 @@ describe('hostBanner', () => {
   });
 });
 
+describe('the other-browser banner', () => {
+  const calm = { connection: 'connected', saveFailed: false, overLimits: false, oversize: false } as const;
+
+  it('comes after the network and a failed save and before the limits and the storage notice, with no action', () => {
+    const text = 'This meeting is also open as facilitator in another browser. Close it in one of them, or changes made in each will not match.';
+    expect(hostBanner({ ...calm, otherBrowser: true })).toEqual({ text });
+    expect(hostBanner({ ...calm, otherBrowser: true, overLimits: true, storageNotice: true })).toEqual({ text });
+    expect(hostBanner({ ...calm, otherBrowser: true, saveFailed: true })).toEqual({ text: COPY.saveFailed, action: 'backUp' });
+    expect(hostBanner({ ...calm, connection: 'noRelays', otherBrowser: true })).toEqual({ text: COPY.noRelays });
+  });
+});
+
 describe('connectingCopy', () => {
   it('waits 15 s before offering Retry, and adds advice about the link at 60 s', () => {
     expect(connectingCopy(14_999)).toEqual({ lines: ['Connecting to the facilitator…'], retry: false });
@@ -43,16 +55,21 @@ describe('connectingCopy', () => {
 describe('banners added after review', () => {
   const calm = { connection: 'connected', saveFailed: false, overLimits: false, oversize: false } as const;
 
-  it('put a refused persistence promise between a failed save and a board over the limits, with Dismiss', () => {
-    expect(hostBanner({ ...calm, saveFailed: true, persistenceRefused: true, overLimits: true })).toEqual({ text: COPY.saveFailed, action: 'backUp' });
-    expect(hostBanner({ ...calm, persistenceRefused: true, overLimits: true }))
-      .toEqual({ text: "This browser hasn't promised to keep this meeting. Back up the meeting file when you finish, and don't use a private window.", action: 'dismiss' });
-    expect(hostBanner({ ...calm, persistenceRefused: false, overLimits: true })).toEqual({ text: COPY.overLimits });
+  it('put the calm storage notice last, with Dismiss, below a failed save and a board over its limits', () => {
+    expect(hostBanner({ ...calm, saveFailed: true, storageNotice: true, overLimits: true })).toEqual({ text: COPY.saveFailed, action: 'backUp' });
+    expect(hostBanner({ ...calm, storageNotice: true, overLimits: true })).toEqual({ text: COPY.overLimits });
+    expect(hostBanner({ ...calm, storageNotice: true, oversize: true })).toEqual({ text: COPY.oversize });
+    expect(hostBanner({ ...calm, storageNotice: true }))
+      .toEqual({ text: 'Make a backup now and then: this browser may clear saved meetings when space runs low', action: 'dismiss' });
+    expect(hostBanner({ ...calm, storageNotice: false })).toBeNull();
   });
 
   it('show tooManyTabs’s message when that was the refusal, and keep the outcome line for 5 s', () => {
     const tooMany = 'This meeting is open in too many tabs on this device. Reload this page to carry on';
     expect(participantBanner({ ...quiet, staleTab: true, staleTabMessage: tooMany })).toEqual({ text: tooMany, action: 'reload' });
     expect(OUTCOME_MS).toBe(5000);
+    expect(UNDO_MS).toBe(10_000);
+    expect(outcomeMs({ kind: 'extended' })).toBe(OUTCOME_MS);
+    expect(outcomeMs({ kind: 'movedOn' })).toBe(UNDO_MS);
   });
 });

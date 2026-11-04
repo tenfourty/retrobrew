@@ -45,7 +45,7 @@ It only acts on a fragment that names a board (`b=`), so in-page anchors such as
 ### 1. Top bar
 
 - Left: the "Retrobrew" wordmark, set in the display face, linking to `/`.
-- Right: "Your meetings" (a quiet text link to `/app/`) and the primary button "Start a meeting" (to `/app/#start`).
+- Right: "Your meetings" (a quiet text link to `/app/`), the primary button "Start a meeting" (to `/app/#start`) and the mode switch (hidden without JavaScript), so the switch sits at the top of every page, as it does in the app. The bar wraps rather than overflows on a narrow screen.
 - At 360 px: "Your meetings" leaves the top bar and appears in the hero and the footer instead.
 
 ### 2. Hero
@@ -97,7 +97,7 @@ Messages always pass through public Nostr relays, and also go directly between d
 Hidden votes are hidden on screen, not cryptographically secret. The same goes for the vote on whether to keep going: Retrobrew never shows or stores who chose what, but everyone in a meeting shares its key, so an attendee who records the meeting's network traffic could work out who voted for which topic, and who chose what.
 
 **What if the facilitator closes the tab?**
-The meeting pauses. Attendees can still read the board, but nothing changes until the facilitator opens the meeting again in the same browser, from "Your meetings"; then everyone carries on where they were. The same happens if the facilitator's phone locks, so Retrobrew asks it to stay awake while the meeting runs. A private window forgets the meeting when it closes. If the browser won't promise to keep its storage, Retrobrew warns the facilitator when the meeting is created.
+Attendees can still read the board, but nobody can change it until the facilitator opens the meeting again in the same browser, from "Your meetings". A running timer keeps going on the facilitator's clock, so if it runs out while they are away, time's up appears for everyone once they are back, and then everyone carries on. The same happens if the facilitator's phone locks, so Retrobrew asks it to stay awake while the meeting runs. A private window forgets the meeting when it closes. Browsers may clear saved meetings when space runs low, so Retrobrew reminds the facilitator to make a backup now and then. "Your meetings" also lists the meetings you joined on this device, so you can come back to one with a tap while the facilitator is running it, and each meeting has a Remove button if you want it off the list.
 
 **Does it work on a work network or VPN?**
 Usually. Retrobrew needs to reach a few public relays over secure WebSockets, the same kind of connection many chat and collaboration tools use. Some company networks and VPNs block these. If yours does, the app says it can't reach the meeting network, and switching to mobile data or a home connection is the quickest fix.
@@ -113,7 +113,6 @@ It's an open-source project with nothing to sell: no adverts, no paid plan and n
 - "Retrobrew is open source under the MIT licence." with links "Source on GitHub" and "MIT licence" (the `LICENSE` file on GitHub).
 - "How to run a Lean Coffee" (to `/lean-coffee/`) and "Your meetings" (to `/app/`).
 - "Version {commit}", where the build writes the short commit from `REVISION`, linking to `/version.txt`.
-- The mode switch (hidden without JavaScript).
 
 ## The guide (`/lean-coffee/`)
 
@@ -141,7 +140,7 @@ One person to facilitate, and everyone with a phone or laptop. With Retrobrew, t
 
 **5. Time's up: keep going or move on.** When the timer runs out, everyone votes: keep going, no preference, or move on. The vote guides you, but you decide. Keep going for a few more minutes if the room is still engaged; move on if the energy has dropped or the point has been made. Repeat with the next topic.
 
-**6. Close.** Leave a few minutes at the end. End the meeting, copy the outcome as text, and paste it wherever your group keeps notes. Back up the meeting file if you might want it later.
+**6. Close.** Leave a few minutes at the end. End the meeting, copy the outcome as text, and paste it wherever your group keeps notes. Back up the meeting file if you might want it later. Open the file in a second browser only to carry on there after closing the first: if the meeting is open as facilitator in two browsers at once, both show a warning, and changes made in each will not match. To clear a meeting off "Your meetings", use its Remove button; it deletes a meeting you ran from this browser, so back it up first.
 
 ## Taking part
 
@@ -219,12 +218,12 @@ It carries the same Open Graph and `twitter:card` tags as the landing page, with
 ## Layout at 360 px
 
 - One column throughout, with the `space-4` (16 px) gutter and no horizontal scroll. Sections are separated by `space-8`.
-- **Top bar:** the wordmark on the left, "Start a meeting" (the `sm` button size, still at least 44 px tall) on the right. "Your meetings" moves to the hero and footer.
+- **Top bar:** the wordmark on the left, "Start a meeting" (the `sm` button size, still at least 44 px tall) and the mode switch on the right. "Your meetings" moves to the hero and footer.
 - **Hero:** heading at the `title` size, then the text, then "Start a meeting" at full width with "Your meetings" below it as a text link. The board still sits below, scaled to the column width.
 - **Steps:** stacked, each with its illustration above its text, illustrations at most 280 px wide.
 - **Why Retrobrew:** a single list.
 - **FAQ:** full-width `<details>` rows, each summary a tap target of at least 44 px.
-- **Footer:** links stacked one per line, then the version, then the mode switch.
+- **Footer:** links stacked one per line, then the version.
 - From 768 px the hero puts the board beside the text, the steps sit in a row of four (two by two between 768 and 1024 px), and "Why Retrobrew" uses two columns.
 
 ## Open choices made

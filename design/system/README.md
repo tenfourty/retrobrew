@@ -34,7 +34,7 @@ Both modes share the same layout, the same rules from the product docs and the s
 ## Colour
 
 - `desk` is the page, `card` holds topics and panels, `sunken` is for inputs. Text is `ink`; secondary text is `ink-soft`. Both reach 4.5:1 on all three grounds in every theme.
-- `primary` fills the one next-step button in an area, with `on-primary` text. Business primary is navy; Party primary is riso blue with yellow text (dark: yellow with deep-blue text).
+- `primary` fills the one next-step button in an area, with `on-primary` text. Business primary is navy; Party primary is riso blue with yellow text (dark: yellow with deep-blue text). In both modes `secondary` is an outlined button on the card ground and `danger` is outlined in the danger colour: Party never fills a secondary with the sticker yellow, so the primary is the only filled button.
 - `accent` is each mode's loud colour, red dot or fluo pink. Use it for fills and marks only; use `accent-ink` when it has to be text.
 - Columns each have a state colour: `state-ideas`, `state-todiscuss`, `state-discussing`, `state-discussed`, with matching `on-state-*` for text on a fill. The state also appears as a word, so colour is never the only signal.
 - Votes use `dot-1`, `dot-2`, `dot-3` in turn, each ringed with `dot-edge`.

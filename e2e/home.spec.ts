@@ -23,9 +23,20 @@ test('a rehearsal link starts a rehearsal meeting, listed with its badge', async
   await expect(home.getByRole('heading', { name: 'Start a meeting' })).toBeVisible();
 });
 
+test('the start page offers a quick rehearsal, and a way back', async ({ page }) => {
+  await page.goto(APP_PATH);
+  await expect(page.getByText('A minute lasts 10 seconds')).toBeVisible();
+  await page.getByRole('textbox', { name: 'Meeting name' }).fill('Kept name');
+  await page.getByRole('link', { name: 'Try a quick rehearsal' }).click();
+  await expect(page.getByRole('heading', { name: 'Start a rehearsal meeting' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Meeting name' })).toHaveValue('Kept name');
+  await page.getByRole('link', { name: 'Start a normal meeting instead' }).click();
+  await expect(page.getByRole('heading', { name: 'Start a meeting' })).toBeVisible();
+});
+
 test('the create form says what is missing and focuses it', async ({ page }) => {
   await page.goto(APP_PATH);
-  await expect(page.getByText('Meetings you start in this browser are listed here')).toBeVisible();
+  await expect(page.getByText('Meetings you start or join in this browser are listed here')).toBeVisible();
   await page.getByRole('button', { name: 'Create meeting' }).click();
   await expect(page.getByText('Enter a meeting name')).toBeVisible();
   await expect(page.getByText('Enter your name')).toBeVisible();

@@ -160,6 +160,43 @@ describe('finishTopic', () => {
   });
 });
 
+describe('undoMoveOn', () => {
+  const movedOn = () => must(run(withOpenVote(), OWNER, { type: 'finishTopic', topicId: 1 }));
+
+  it('puts the topic back in Discussing with its expired timer and the time-up vote as it was', () => {
+    const before = withOpenVote();
+    const s = must(run(movedOn(), OWNER, { type: 'undoMoveOn', topicId: 1 }));
+    expect(column(s, 1)).toBe('discussing');
+    expect(s.discussedOrder).toEqual([]);
+    expect(s.timer).toEqual(before.timer);
+    expect(s.continueVote).toEqual(before.continueVote);
+    expect(brokenInvariants(s)).toEqual([]);
+  });
+
+  it('can be used once', () => {
+    const s = must(run(movedOn(), OWNER, { type: 'undoMoveOn', topicId: 1 }));
+    expect(run(s, OWNER, { type: 'undoMoveOn', topicId: 1 })).toEqual(refused('nothingToUndo'));
+  });
+
+  it('is for the facilitator only', () => {
+    expect(run(movedOn(), ANN, { type: 'undoMoveOn', topicId: 1 })).toEqual(refused('facilitatorOnly'));
+  });
+
+  it('is refused when the topic was finished with no time-up vote open', () => {
+    const s = must(run(discussing(), OWNER, { type: 'finishTopic', topicId: 1 }));
+    expect(run(s, OWNER, { type: 'undoMoveOn', topicId: 1 })).toEqual(refused('nothingToUndo'));
+  });
+
+  it('is refused once another topic is being discussed', () => {
+    const s = must(run(movedOn(), OWNER, { type: 'discussTopic', topicId: 2, minutes: 5 }));
+    expect(run(s, OWNER, { type: 'undoMoveOn', topicId: 1 })).toEqual(refused('nothingToUndo'));
+  });
+
+  it('is refused for another topic', () => {
+    expect(run(movedOn(), OWNER, { type: 'undoMoveOn', topicId: 2 })).toEqual(refused('nothingToUndo'));
+  });
+});
+
 describe('rounds', () => {
   it('only ever go up, across every kind of new timer', () => {
     const rounds: number[] = [];

@@ -409,6 +409,61 @@ describe('noting persistence', () => {
   });
 });
 
+describe('joined meetings', () => {
+  const joined = (n: number) => ({ boardId: `joined-${n}`, boardName: `Meeting ${n}`, link: `https://example.test/app/#b=joined-${n}`, name: 'Ana', joinedAt: n });
+
+  it('saves, lists and removes the meetings this device joined, apart from its own boards', async () => {
+    const store = await freshStore();
+    await store.putJoined(joined(1));
+    await store.putJoined({ ...joined(1), name: 'Ana B' });
+    expect(await store.listJoined()).toEqual([{ ...joined(1), name: 'Ana B' }]);
+    expect(await store.list()).toEqual([]);
+    await store.removeJoined('joined-1');
+    expect(await store.listJoined()).toEqual([]);
+    store.close();
+  });
+
+  it('keeps the 20 most recent and drops the oldest', async () => {
+    const store = await freshStore();
+    for (let n = 1; n <= 22; n += 1) await store.putJoined(joined(n));
+    const ids = (await store.listJoined()).map((j) => j.boardId);
+    expect(ids).toHaveLength(20);
+    expect(ids).not.toContain('joined-1');
+    expect(ids).not.toContain('joined-2');
+    expect(ids).toContain('joined-22');
+    store.close();
+  });
+
+  it('skips a malformed entry when listing', async () => {
+    const name = `test-bad-${++dbCount}`;
+    const store = await openStore(name);
+    store.close();
+    const raw = await openDB(name, 3);
+    await raw.put('joined', { boardId: 'x', boardName: 3 });
+    raw.close();
+    const again = await openStore(name);
+    expect(await again.listJoined()).toEqual([]);
+    again.close();
+  });
+
+  it('adds the joined meetings to a version 2 database without touching its boards', async () => {
+    const name = `test-v2-${++dbCount}`;
+    const v2 = await openDB(name, 2, {
+      upgrade(db) {
+        db.createObjectStore('boards', { keyPath: 'boardId' });
+        db.createObjectStore('device', { keyPath: 'id' });
+      },
+    });
+    await v2.put('device', { id: 'device', name: 'Olu' });
+    v2.close();
+    const store = await openStore(name);
+    expect((await store.getDevice())?.name).toBe('Olu');
+    await store.putJoined(joined(1));
+    expect(await store.listJoined()).toHaveLength(1);
+    store.close();
+  });
+});
+
 // What Retrobrew saved before protocol 3 renamed its fields. It can no longer be read: only its shape matters here.
 describe('boards saved before protocol 3', () => {
   it('drops the boards of a version 1 database when it upgrades, and keeps working', async () => {

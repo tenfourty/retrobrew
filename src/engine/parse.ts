@@ -42,6 +42,7 @@ export function parseCommand(x: unknown): Command | null {
     case 'stopTimer':
     case 'returnTopic':
     case 'finishTopic':
+    case 'undoMoveOn':
       return isId(x.topicId) ? { type: x.type, topicId: x.topicId } : null;
     case 'voteToContinue':
       return isId(x.topicId) && isId(x.round) && typeof x.choice === 'string'

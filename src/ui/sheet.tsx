@@ -99,15 +99,18 @@ export interface ConfirmAction {
 }
 
 // A Sheet with a body and a row of buttons: other actions first, the danger action last but one, and Cancel last.
-// Escape and Cancel close it without acting.
-export function ConfirmDialog(props: { open: boolean; title: string; body: ComponentChildren; actions: ConfirmAction[]; onCancel: () => void; cancelLabel?: string; returnFocusTo?: HTMLElement | null }) {
+// Escape and Cancel close it without acting. A dialog with a danger action (or `focusCancel`) opens with focus on Cancel, so Enter never
+// destroys by accident.
+export function ConfirmDialog(props: { open: boolean; title: string; body: ComponentChildren; actions: ConfirmAction[]; onCancel: () => void; cancelLabel?: string; returnFocusTo?: HTMLElement | null; focusCancel?: boolean }) {
   const ordered = [...props.actions.filter((a) => a.variant !== 'danger'), ...props.actions.filter((a) => a.variant === 'danger')];
+  const destructive = props.focusCancel ?? props.actions.some((a) => a.variant === 'danger');
   return (
-    <Sheet open={props.open} title={props.title} onClose={props.onCancel} noClose className="rb-confirm" returnFocusTo={props.returnFocusTo}>
+    <Sheet open={props.open} title={props.title} onClose={props.onCancel} noClose className="rb-confirm" returnFocusTo={props.returnFocusTo}
+      initialFocus={destructive ? '.rb-confirm-cancel' : undefined}>
       <div className="rb-confirm-body">{props.body}</div>
       <div className="rb-confirm-actions">
         {ordered.map((a, i) => <Button key={i} variant={a.variant} onClick={a.onClick}>{a.label}</Button>)}
-        <Button variant="ghost" onClick={props.onCancel}>{props.cancelLabel ?? 'Cancel'}</Button>
+        <Button variant="ghost" className="rb-confirm-cancel" onClick={props.onCancel}>{props.cancelLabel ?? 'Cancel'}</Button>
       </div>
     </Sheet>
   );

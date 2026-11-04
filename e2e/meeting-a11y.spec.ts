@@ -54,7 +54,7 @@ test('every phase passes axe in all four themes, with 44 px targets, wide and on
     // Collecting topics.
     for (const text of ['Release notes', 'Hiring plan', 'Pairing rotation']) await addTopic(host, text);
     await expect(topicCard(ann, 'Pairing rotation')).toBeVisible({ timeout: NETWORK_WAIT });
-    await topicCard(ann, 'Hiring plan').getByRole('button', { name: 'Vote', exact: true }).click();
+    await topicCard(ann, 'Hiring plan').getByRole('button', { name: /^Vote for / }).click();
     await expect(topicCard(host, 'Hiring plan').getByRole('img', { name: '1 vote' })).toBeVisible({ timeout: NETWORK_WAIT });
     // The facilitator's panel holds the timer sound's Select and its Play row.
     await expect(facilitatorPanel(host).getByRole('combobox', { name: 'Timer sound' })).toBeVisible();
@@ -178,7 +178,7 @@ test('a facilitator whose device cannot save sees that banner, not the ended ban
   const context = await browser.newContext();
   try {
     const host = await context.newPage();
-    await forceSignals(host, { host: { persistenceRefused: false, saveFailed: true } });
+    await forceSignals(host, { host: { storageNotice: false, saveFailed: true } });
     await hostMeeting(host, 'Hana', 'Save failing', { rehearsal: true });
     await addTopic(host, 'Release notes');
     await expect(banner(host, "This device couldn't save the meeting")).toBeVisible({ timeout: NETWORK_WAIT });
@@ -217,7 +217,7 @@ test('the countdown is said once for each timer: a layout flip does not repeat i
     const sheet = timeUpSheet(host);
     await sheet.getByRole('group', { name: 'Your vote' }).getByRole('button', { name: 'Keep going', exact: true }).click();
     await sheet.getByRole('group', { name: 'More time' }).getByRole('button', { name: '20 s', exact: true }).click();
-    await sheet.locator('.mtg-decision').getByRole('button').first().click();
+    await sheet.locator('.mtg-decision').getByRole('button').nth(1).click();
     await expect.poll(countdowns, { timeout: NETWORK_WAIT }).toBe(2);
     await expect(timeUpSheet(ann)).toBeVisible({ timeout: TIME_UP_WAIT });
     expect(await countdowns()).toBe(2);
@@ -298,7 +298,7 @@ test('a facilitator on a phone: the share step, More, editing, every confirmatio
     const share = host.getByRole('dialog', { name: 'Invite people' });
     await expectAccessible(host);
     await share.getByRole('button', { name: 'Copy link' }).click();
-    await expect(share.getByRole('textbox', { name: 'Copy the link from here' })).toBeVisible();
+    await expect(share.getByRole('textbox', { name: 'Meeting link' })).toBeVisible();
     await expectAccessible(host);
     await share.getByRole('button', { name: 'Done' }).click();
     await expect(share).toHaveCount(0);
@@ -315,7 +315,7 @@ test('a facilitator on a phone: the share step, More, editing, every confirmatio
     // More: its action and the Facilitator controls. Show votes off and on, with a vote cast.
     await openMore();
     await checkDialog(host, 'More');
-    await topicCard(host, 'Pairing rotation').getByRole('button', { name: 'Vote', exact: true }).click();
+    await topicCard(host, 'Pairing rotation').getByRole('button', { name: /^Vote for / }).click();
     await expect(topicCard(host, 'Pairing rotation').getByRole('img', { name: '1 vote' })).toBeVisible();
     await openMore();
     await more.getByRole('switch', { name: 'Show votes' }).click();
@@ -331,14 +331,14 @@ test('a facilitator on a phone: the share step, More, editing, every confirmatio
 
     // Editing a topic, then the delete confirmation.
     const card = topicCard(host, 'Pairing rotation');
-    await card.getByRole('button', { name: 'Edit', exact: true }).click();
+    await card.getByRole('button', { name: /^Edit / }).click();
     // The card's text moves into the field, so the card is found by the field from here on.
     const editing = host.getByRole('textbox', { name: /^Edit #\d+$/ });
     await expect(editing).toBeVisible();
     await expectAccessible(host);
     await host.locator('article', { has: editing }).getByRole('button', { name: 'Cancel' }).click();
     await expect(editing).toHaveCount(0);
-    await card.getByRole('button', { name: 'Delete', exact: true }).click();
+    await card.getByRole('button', { name: /^Delete / }).click();
     await checkDialog(host, /^Delete #\d+\?$/);
 
     // Reset all votes, from the Facilitator controls in More.

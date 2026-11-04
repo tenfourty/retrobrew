@@ -17,7 +17,7 @@ export function participantSignals(session: ParticipantFields, ended: boolean): 
 }
 
 const ERRORS: string[] = [COPY.reloadThisPage, COPY.askFacilitator, COPY.pendingFailed, COPY.staleTab, COPY.saveFailed];
-const WARNINGS: string[] = [COPY.noRelays, COPY.hostOffline, COPY.overLimits, COPY.oversize];
+const WARNINGS: string[] = [COPY.noRelays, COPY.hostOffline, COPY.otherBrowser, COPY.overLimits, COPY.oversize];
 
 // The tone is decoration; every banner says what is wrong in words. A stale tab's other message (tooManyTabs) is an
 // error too, since it also asks for a reload.

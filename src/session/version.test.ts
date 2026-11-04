@@ -4,7 +4,7 @@ import { fromUtf8, type Bytes } from '../crypto/bytes';
 import { fingerprint, generateSigningKeys, signerFrom } from '../crypto/sign';
 import { encodeWire, sealEnvelope } from '../protocol/envelope';
 import { newSid } from '../protocol/sid';
-import { VERSION_MESSAGE } from '../protocol/version';
+import { PROTOCOL_VERSION, VERSION_MESSAGE } from '../protocol/version';
 import { FakeScheduler } from '../test/fake-scheduler';
 import { BOARD, TestRoom } from '../test/sessions';
 import { settle } from '../test/settle';
@@ -102,7 +102,7 @@ describe('version handling on the host', () => {
     const newer = await otherVersionTab(room, 'newer-tab');
     await run(scheduler, 1000);
     newer.transport.send('host', await encodeWire(room.roomKey, await sealEnvelope(newer.signer,
-      { t: 'hello', pv: 4, boardId: BOARD, name: 'Newer', peer: 'newer-tab' }), 1));
+      { t: 'hello', pv: PROTOCOL_VERSION + 1, boardId: BOARD, name: 'Newer', peer: 'newer-tab' }), 1));
     await waitFor(() => newer.replies.length === 1);
     expect(newer.replies[0]).toMatchObject({ state: { boardId: BOARD, boardName: VERSION_MESSAGE, topics: [] } });
     host.stop();

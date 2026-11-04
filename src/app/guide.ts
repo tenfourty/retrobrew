@@ -16,4 +16,14 @@ export function guideLine(phase: Phase, facilitator: boolean, allowance: number)
   return facilitator ? 'This meeting has ended. Copy the outcome or reopen it' : 'This meeting has ended';
 }
 
+export const SHOW_VOTES_CAVEAT = "Hidden on screen. It doesn't make votes secret from other attendees.";
+export const SHOW_VOTES_LOCKED = 'Votes always show once the discussion starts';
+
+// The hints under the Show votes switch. The caveat describes the hidden state, so it shows only while votes are hidden;
+// once the discussion starts the switch is locked on and says so, and the caveat has nothing left to describe.
+export function showVotesHints(phase: Phase, showVotes: boolean): string[] {
+  if (phase !== 'topics') return [SHOW_VOTES_LOCKED];
+  return showVotes ? [] : [SHOW_VOTES_CAVEAT];
+}
+
 export const FACILITATOR_LINE = 'This meeting runs on this device. Keep this page open.';

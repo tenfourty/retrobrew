@@ -67,6 +67,8 @@ test('a name remembered for a meeting is not used for a link that names another 
 test('a broken link says so, with no join form', async ({ page }) => {
   await page.goto(`${APP_PATH}#b=abcdefgh&k=short&h=short`);
   await expect(page.getByRole('heading', { name: "This link isn't complete" })).toBeVisible();
+  // The page offers a way on besides the logo.
+  await expect(page.getByRole('link', { name: 'start a meeting of your own' })).toBeVisible();
   await expect(page.getByText('Ask the facilitator to share the meeting link again.')).toBeVisible();
   await expect(page.getByRole('textbox')).toHaveCount(0);
 });

@@ -7,7 +7,7 @@ import { parseCommand } from '../engine/parse';
 import { refuse } from '../engine/result';
 import { mergeView, redactFor, sharedView } from '../engine/redact';
 import type { BoardState, Command, Result, ViewContext, ViewState } from '../engine/types';
-import { encodeBundle } from '../protocol/bundle';
+import { encodeBundle, openBundle } from '../protocol/bundle';
 import { decodeFrame, encodeWire, openEnvelope, sealEnvelope } from '../protocol/envelope';
 import { parseToHost, versionReplyState, type CmdMessage, type Hello, type Ping, type ToPeer } from '../protocol/messages';
 import { bundleRecipients, relayEventBytes, TOPIC_PLACEHOLDER, type Refusal } from '../protocol/size';
@@ -105,6 +105,9 @@ export const REFUSED_HELLO_MS = 5000;
 export const JOIN_REFUSED_MAX = 64;
 export const NO_RELAYS_MS = 10_000;
 const CHECK_MS = 1000;
+// A host sends a full refresh every few seconds, so a page this quiet for this long has closed.
+const OTHER_HOST_QUIET_MS = 90_000;
+const LIVE_REPEAT_MS = 4000;
 // Peer records are bounded: one not heard from for 60 s goes at the next tick (every second), and a signer has at most
 // eight, the least recently heard going first. A participant whose record went binds again with its next hello.
 export const PEER_RECORD_TTL_MS = 60_000;
@@ -150,6 +153,12 @@ export class HostSession {
   // A bundle was still over the relay limit after trimming (src/session/refresh.ts, fitBundle): the facilitator sees a
   // banner (src/app/banners.ts), growth is refused until a full refresh fits again, and oversizeCount counts them for the connection details.
   oversize = false;
+  // Another page is hosting this meeting with the same key (a backup restored in another browser). It clears when that
+  // page has not been heard for OTHER_HOST_QUIET_MS.
+  otherBrowser = false;
+  private otherHostAt = 0;
+  // Hosts of older sessions heard so far, and when first (bounded). In memory only.
+  private readonly olderHeard = new Map<string, number>();
   oversizeCount = 0;
   private working: BoardState; // the latest board, saved or not
   private tabs: TabTable;
@@ -308,7 +317,7 @@ export class HostSession {
   resume(): void {
     if (this.closed) return;
     this.transport.resume();
-    this.pacer.refresh();
+    this.pacer.resume();
     this.safeTick();
   }
 
@@ -326,6 +335,11 @@ export class HostSession {
   // and watch the relay sockets.
   private check(): void {
     const now = this.now();
+    for (const [id, at] of this.olderHeard) if (now - at > OTHER_HOST_QUIET_MS) this.olderHeard.delete(id);
+    if (this.otherBrowser && now - this.otherHostAt > OTHER_HOST_QUIET_MS) {
+      this.otherBrowser = false;
+      this.o.onStatus?.();
+    }
     for (const [personId, s] of this.stale) {
       if (now - s.at <= STALE_KEEP_MS) continue;
       this.stale.delete(personId);
@@ -485,6 +499,29 @@ export class HostSession {
     this.hellos.sweep(this.now());
   }
 
+  // A view or bundle signed with this meeting's host key by a page that isn't this one: the same meeting, restored from a
+  // backup in another browser, is hosting too. Nothing is sent for it; both pages already broadcast their views. A relay
+  // may keep and replay events, including those of this device's own earlier page loads (which have another host ID),
+  // so only a message that is live counts. A session at least as new as this one is live (epochs only rise, and a
+  // reload takes a later one). An older one counts if it arrived directly, or if its host ID is heard again at least
+  // LIVE_REPEAT_MS after it was first heard: a replay comes in one burst, a live host keeps refreshing every 5 s.
+  private noticeOtherHost(m: Inbound, epoch: unknown, host: unknown): void {
+    if (typeof epoch !== 'number' || typeof host !== 'string' || host === this.transport.selfId || m.from === this.transport.selfId) return;
+    if (epoch < this.o.epoch && m.path !== 'direct') {
+      const first = this.olderHeard.get(host);
+      if (first === undefined) {
+        if (this.olderHeard.size < 16) this.olderHeard.set(host, this.now());
+        return;
+      }
+      if (this.now() - first < LIVE_REPEAT_MS) return;
+    }
+    this.otherHostAt = this.now();
+    if (!this.otherBrowser) {
+      this.otherBrowser = true;
+      this.o.onStatus?.();
+    }
+  }
+
   private setSaveFailed(failed: boolean): void {
     if (failed === this.saveFailed) return;
     this.saveFailed = failed;
@@ -494,8 +531,19 @@ export class HostSession {
   private async receive(m: Inbound): Promise<void> {
     if (m.echo || this.closed) return;
     const frame = await decodeFrame(this.o.roomKey, m.data);
+    if (frame?.kind === 'bundle') {
+      const bundle = await openBundle(frame.body, this.o.signer.pub);
+      if (bundle) this.noticeOtherHost(m, bundle.message.epoch, bundle.message.host);
+      return;
+    }
     if (frame?.kind !== 'envelope') return;
     const opened = await openEnvelope(frame.env);
+    // The host's own key on a view from another page: this meeting is open as facilitator somewhere else too.
+    if (opened?.pub === this.o.signer.pub) {
+      const view = opened.message as { t?: unknown; epoch?: unknown; host?: unknown };
+      if (view.t === 'snapshot') this.noticeOtherHost(m, view.epoch, view.host);
+      return;
+    }
     const msg = opened && parseToHost(opened.message, frame.pv);
     if (!opened || !msg) return;
     const personId = await fingerprint(opened.pub);

@@ -39,6 +39,18 @@ describe('announcementsBetween', () => {
     expect(announcementsBetween(ended, board('discussion', [topic(2, 'discussed')]))).toEqual(['Meeting reopened']);
   });
 
+  it('says a topic left Discussing, so the region no longer reads "Now discussing" for it', () => {
+    const running = board('discussion', [topic(2, 'discussing'), topic(3, 'toDiscuss')]);
+    expect(announcementsBetween(running, board('discussion', [topic(2, 'toDiscuss'), topic(3, 'toDiscuss')]))).toEqual(['#2 returned to To discuss']);
+    expect(announcementsBetween(running, board('discussion', [topic(2, 'discussed'), topic(3, 'toDiscuss')]))).toEqual(['#2 moved to Discussed']);
+    // Moving on after a time-up vote has its outcome line; ending the meeting and going back to topics have their own words.
+    const open = board('discussion', [topic(2, 'discussing')], { topicId: 2, round: 1 });
+    expect(announcementsBetween(open, board('discussion', [topic(2, 'discussed')]))).toEqual([]);
+    expect(announcementsBetween(running, board('ended', [topic(2, 'discussed'), topic(3, 'toDiscuss')]))).toEqual(['Meeting ended']);
+    // Another topic taking its place says only that one.
+    expect(announcementsBetween(running, board('discussion', [topic(2, 'toDiscuss'), topic(3, 'discussing')]))).toEqual(['Now discussing #3: Topic 3', '#2 returned to To discuss']);
+  });
+
   it('announces time up once for each vote, and again for a new round on the same topic', () => {
     const running = board('discussion', [topic(4, 'discussing')]);
     const open = board('discussion', [topic(4, 'discussing')], { topicId: 4, round: 1 });

@@ -57,23 +57,24 @@ describe('tab bounds in a meeting', () => {
 
   it('refuses a tab whose gap can never be filled (a backup older than its acks) with staleTab, rather than hanging', async () => {
     const room = await TestRoom.create();
-    const first = room.host('host-1');
-    const ann = await room.person('Ann');
-    await waitFor(() => joined(ann), 10_000);
+    const scheduler = new FakeScheduler(Date.now());
+    const first = room.host('host-1', { scheduler });
+    const ann = await room.person('Ann', { scheduler });
+    await runUntil(scheduler, () => joined(ann));
     await ann.session.send({ type: 'addTopic', text: 'One' });
-    await waitFor(() => ann.session.state?.acks[ann.session.sid] === 1, 10_000);
+    await runUntil(scheduler, () => ann.session.state?.acks[ann.session.sid] === 1);
     const backup = structuredClone(room.saved!);
     await ann.session.send({ type: 'addTopic', text: 'Two' });
-    await waitFor(() => ann.session.state?.acks[ann.session.sid] === 2, 10_000);
+    await runUntil(scheduler, () => ann.session.state?.acks[ann.session.sid] === 2);
     // The facilitator restores the backup taken after the first command: the host's table says ack 1, Ann's tab is at 2.
     first.stop();
     room.direct.drop('host-1');
     room.relay.drop('host-1');
     room.saved = backup;
-    const restored = room.host('host-2', { epoch: 2 });
-    await waitFor(() => ann.session.state?.acks[ann.session.sid] === 1, 10_000);
+    const restored = room.host('host-2', { epoch: 2, scheduler });
+    await runUntil(scheduler, () => ann.session.state?.acks[ann.session.sid] === 1);
     await ann.session.send({ type: 'addTopic', text: 'Three' });
-    await waitFor(() => ann.session.staleTab, GAP_REFUSE_MS + 6000);
+    await runUntil(scheduler, () => ann.session.staleTab);
     expect(ann.rejects).toContain(MESSAGES.staleTab);
     expect(restored.current.topics.map((t) => t.text)).toEqual(['One']);
     restored.stop();
@@ -125,7 +126,8 @@ describe('tab bounds in a meeting', () => {
 
   it('forgets a refused tab’s reject after a while, so the map can’t grow without end', async () => {
     const room = await TestRoom.create();
-    const ann = await room.person('Ann');
+    const scheduler = new FakeScheduler(Date.now());
+    const ann = await room.person('Ann', { scheduler });
     // Ann's watermark sits just before her live tab, so an older sid of hers is refused with staleTab.
     let now = sidCreatedAt(ann.session.sid)!;
     room.saved = {
@@ -133,17 +135,17 @@ describe('tab bounds in a meeting', () => {
       tabs: { [ann.id]: { watermark: now - 5, tabs: {} } },
     };
     room.saved.state.attendees[ann.id] = { id: ann.id, name: 'Ann', role: 'guest' };
-    const host = room.host('host', { now: () => now });
-    await waitFor(() => joined(ann), 10_000);
+    const host = room.host('host', { now: () => now, scheduler });
+    await runUntil(scheduler, () => joined(ann));
     const raw = room.direct.join('raw');
     await waitFor(() => raw.peers().includes('host'), 10_000);
     const old = newSid(now - 10);
     raw.send('host', await encodeWire(room.roomKey, await sealEnvelope(ann.signer,
       { t: 'cmd', peer: 'raw', boardId: BOARD, clientSeq: 1, sid: old, epoch: 1, cmd: { type: 'addTopic', text: 'Old' } })));
-    await waitFor(() => ann.session.state?.rejects[old]?.key === 'staleTab', 10_000);
+    await runUntil(scheduler, () => ann.session.state?.rejects[old]?.key === 'staleTab');
     now += STALE_KEEP_MS + 2000;
-    await waitFor(() => !(host as unknown as { stale: Map<string, unknown> }).stale.has(ann.id), 5000);
-    await waitFor(() => ann.session.state?.rejects[old] === undefined, 15_000);
+    await runUntil(scheduler, () => !(host as unknown as { stale: Map<string, unknown> }).stale.has(ann.id));
+    await runUntil(scheduler, () => ann.session.state?.rejects[old] === undefined);
     expect(host.current.topics).toHaveLength(0);
     host.stop();
   }, 30_000);
@@ -423,9 +425,10 @@ describe('one-off replies', () => {
 describe('a notAttendee refusal', () => {
   it('leaves the command pending, shows nothing, and the command is applied once it reaches the host', async () => {
     const room = await TestRoom.create();
-    const host = room.host();
-    const ann = await room.person('Ann');
-    await waitFor(() => joined(ann), 10_000);
+    const scheduler = new FakeScheduler(Date.now());
+    const host = room.host('host', { scheduler });
+    const ann = await room.person('Ann', { scheduler });
+    await runUntil(scheduler, () => joined(ann));
     // Ann's command is lost on the way, and a notAttendee refusal for it reaches her (as from a host that hadn't
     // applied her join yet).
     let losing = true;
@@ -433,10 +436,10 @@ describe('a notAttendee refusal', () => {
     await ann.session.send({ type: 'addTopic', text: 'Pending' });
     (host as unknown as { refuseStranger(m: unknown, personId: string, msg: unknown): void })
       .refuseStranger({ from: 'Ann', path: 'direct' }, ann.id, { sid: ann.session.sid, clientSeq: 1 });
-    await waitFor(() => ann.session.state?.rejects[ann.session.sid]?.key === 'notAttendee', 10_000);
+    await runUntil(scheduler, () => ann.session.state?.rejects[ann.session.sid]?.key === 'notAttendee');
     losing = false;
-    await waitFor(() => host.current.topics.length === 1, 10_000); // the resend, from clientSeq 1
-    await waitFor(() => ann.session.state?.acks[ann.session.sid] === 1, 10_000);
+    await runUntil(scheduler, () => host.current.topics.length === 1); // the resend, from clientSeq 1, after RESEND_AFTER_MS of fake time
+    await runUntil(scheduler, () => ann.session.state?.acks[ann.session.sid] === 1);
     expect(ann.rejects).toEqual([]);
     expect(ann.session.staleTab).toBe(false);
     host.stop();

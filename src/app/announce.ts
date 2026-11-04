@@ -26,6 +26,13 @@ export function announcementsBetween(before: Board | null, after: Board): string
   const was = before.topics.find((t) => t.column === 'discussing');
   const now = after.topics.find((t) => t.column === 'discussing');
   if (now && now.topicId !== was?.topicId) said.push(`Now discussing #${now.topicId}: ${now.text}`);
+  // The region keeps its last words, so a topic leaving Discussing says so; otherwise it still reads "Now discussing #n".
+  // A vote that was open is closed by its outcome line, which says the rest.
+  if (was && now?.topicId !== was.topicId && after.phase === before.phase && after.phase === 'discussion') {
+    const left = after.topics.find((t) => t.topicId === was.topicId);
+    if (left?.column === 'toDiscuss') said.push(`#${was.topicId} returned to To discuss`);
+    else if (left?.column === 'discussed' && !before.vote) said.push(`#${was.topicId} moved to Discussed`);
+  }
   if (after.vote && (after.vote.round !== before.vote?.round || after.vote.topicId !== before.vote?.topicId)) said.push(TIME_UP_ANNOUNCEMENT);
   return said;
 }

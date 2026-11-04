@@ -107,7 +107,7 @@ async function expectDiscussing(page: Page, width: Width): Promise<void> {
   else await expect(page.getByRole('region', { name: 'Discussing' }).locator('article')).toBeVisible({ timeout: NETWORK_WAIT });
 }
 
-const vote = (page: Page, topic: string): Locator => topicCard(page, topic).getByRole('button', { name: 'Vote', exact: true });
+const vote = (page: Page, topic: string): Locator => topicCard(page, topic).getByRole('button', { name: /^Vote for / });
 
 async function walk(browser: Browser, width: Width): Promise<void> {
   const viewport = WIDTHS[width];
@@ -118,7 +118,7 @@ async function walk(browser: Browser, width: Width): Promise<void> {
   const shot = shooter(width, 'a');
   try {
     // Headless Chromium may refuse to persist storage; only the banner's own forced screen shows that banner.
-    await forceSignals(host, { host: { persistenceRefused: false } });
+    await forceSignals(host, { host: { storageNotice: false } });
     await host.goto(APP_PATH);
     await shot(host, 'home');
     await createMeeting(host, 'Hana', 'Team Lean Coffee', { rehearsal: true });
@@ -165,13 +165,13 @@ async function walk(browser: Browser, width: Width): Promise<void> {
       await host.keyboard.press('Escape');
     }
     const mine = topicCard(guest, 'Pairing rotation');
-    await mine.getByRole('button', { name: 'Edit', exact: true }).click();
+    await mine.getByRole('button', { name: /^Edit / }).click();
     const editing = guest.getByRole('textbox', { name: /^Edit #\d+$/ });
     await expect(editing).toBeVisible();
     await shot(guest, 'editing-a-topic');
     await guest.locator('article', { has: editing }).getByRole('button', { name: 'Cancel' }).click();
     await expect(editing).toHaveCount(0);
-    await mine.getByRole('button', { name: 'Delete', exact: true }).click();
+    await mine.getByRole('button', { name: /^Delete / }).click();
     await expect(guest.getByRole('dialog', { name: /^Delete #\d+\?$/ })).toBeVisible();
     await shot(guest, 'delete-confirmation');
     await guest.keyboard.press('Escape');
@@ -192,6 +192,10 @@ async function walk(browser: Browser, width: Width): Promise<void> {
     await shot(guest, 'discussing-participant');
     await shot(host, 'discussing-facilitator');
     await barAction(host, 'Stop timer');
+    const confirmStop = host.getByRole('dialog', { name: 'Stop the timer?' });
+    await expect(confirmStop).toBeVisible();
+    await shot(host, 'stop-timer-confirmation');
+    await confirmStop.getByRole('button', { name: 'Stop timer' }).click();
     await expect(guest.locator('.mtg-no-timer')).toBeVisible({ timeout: NETWORK_WAIT });
     await shot(guest, 'discussing-no-timer');
     await barAction(host, 'Start timer');
@@ -206,10 +210,11 @@ async function walk(browser: Browser, width: Width): Promise<void> {
     await shot(guest, 'time-up-participant-voted');
     await expect(timeUpSheet(host).getByText(/\d+ voted/)).toBeVisible({ timeout: NETWORK_WAIT });
     await shot(host, 'time-up-facilitator');
-    // "Or move on" is the decision's second button, so no new timer starts and the sheet does not come back.
-    await timeUpSheet(host).locator('.mtg-decision').getByRole('button').last().click();
+    // Move on is the decision's first button, so no new timer starts and the sheet does not come back.
+    await timeUpSheet(host).locator('.mtg-decision').getByRole('button').first().click();
     await expect(outcomeLine(guest)).toBeVisible({ timeout: NETWORK_WAIT });
     await shot(guest, 'outcome-line');
+    await shot(host, 'outcome-line-undo');
 
     if (width === 'phone') await host.getByRole('tab', { name: /^To discuss/ }).click();
     await discussTopic(host, 'Release notes', '50 s');
@@ -242,16 +247,18 @@ async function shortMeeting(browser: Browser, width: Width): Promise<void> {
   const shot = shooter(width, 'b');
   try {
     const host = await context.newPage();
-    await forceSignals(host, { host: { persistenceRefused: false } });
+    await forceSignals(host, { host: { storageNotice: false } });
     await createMeeting(host, 'Hana', 'Short meeting', { rehearsal: true });
     const share = host.getByRole('dialog', { name: 'Invite people' });
     await share.getByRole('button', { name: 'Copy link' }).click();
-    await expect(share.getByRole('textbox', { name: 'Copy the link from here' })).toBeVisible();
+    await expect(share.getByRole('textbox', { name: 'Meeting link' })).toBeVisible();
     await shot(host, 'share-copy-fallback');
     await share.getByRole('button', { name: 'Done' }).click();
     await expect(share).toHaveCount(0);
     await addTopic(host, 'Release notes');
     await host.getByRole('textbox', { name: 'New topic' }).blur();
+    // On phones the bar returns a short hold after the add box loses focus; barAction looks at it without waiting.
+    await expect(bar(host).getByRole('button', { name: 'Start discussion' })).toBeVisible();
     await barAction(host, 'Start discussion');
     await discussTopic(host, 'Release notes', '50 s');
     await barAction(host, 'Finish topic');
@@ -281,7 +288,7 @@ const PARTICIPANT_BANNERS: Array<[string, Record<string, unknown>]> = [
 const HOST_BANNERS: Array<[string, Record<string, unknown>]> = [
   ['no-relays', { connection: 'noRelays' }],
   ['save-failed', { saveFailed: true }],
-  ['persistence-refused', { persistenceRefused: true }],
+  ['storage-notice', { storageNotice: true }],
   ['over-limits', { overLimits: true }],
   ['oversize', { oversize: true }],
 ];
@@ -314,7 +321,7 @@ async function states(browser: Browser, width: Width): Promise<void> {
     for (const [name, force] of HOST_BANNERS) {
       const page = await context.newPage();
       // Headless Chromium may refuse to persist storage; only the persistence case shows that banner.
-      await forceSignals(page, { host: { persistenceRefused: false, ...force } });
+      await forceSignals(page, { host: { storageNotice: false, ...force } });
       await hostMeeting(page, 'Hana', 'Team Lean Coffee');
       await expect(page.locator('.mtg-banner .rb-banner')).toHaveCount(1, { timeout: NETWORK_WAIT });
       await shot(page, `banner-facilitator-${name}`);
@@ -322,7 +329,7 @@ async function states(browser: Browser, width: Width): Promise<void> {
     }
 
     const host = await context.newPage();
-    await forceSignals(host, { host: { persistenceRefused: false } });
+    await forceSignals(host, { host: { storageNotice: false } });
     const url = await hostMeeting(host, 'Hana', 'Team Lean Coffee');
     const guest = await guestContext.newPage();
     await joinMeeting(guest, url, 'Ann');

@@ -6,7 +6,7 @@ afterEach(() => { vi.unstubAllGlobals(); });
 const options = { relays: ['wss://a.example'], roomId: 'room', password: 'pw' };
 
 describe('createTrysteroTransport', () => {
-  it('closes the signalling sockets joinRoom opened before it threw, and only those', () => {
+  it('keeps the signalling sockets joinRoom opened before it threw, for the page\'s next join', () => {
     vi.stubGlobal('RTCPeerConnection', class {});
     const existing = { close: vi.fn() };
     const sockets: Record<string, { close(): void }> = { 'wss://old.example': existing };
@@ -16,7 +16,7 @@ describe('createTrysteroTransport', () => {
       joinRoom: (() => { sockets['wss://a.example'] = opened; throw new Error('boom'); }) as never,
     };
     expect(() => createTrysteroTransport(options, lib)).toThrow('boom');
-    expect(opened.close).toHaveBeenCalledOnce();
+    expect(opened.close).not.toHaveBeenCalled();
     expect(existing.close).not.toHaveBeenCalled();
   });
 
@@ -204,6 +204,8 @@ function fakeLib() {
   const unreachable = new Set<string>();
   const occupied = new Map<string, ReturnType<typeof fakeRoom>>();
   let initUrls: string[] = [];
+  // Trystero's didInit with no room to reset it: set by a join that threw after init, cleared when a room is left.
+  let stuckInit = false;
   const shared: SharedConnections = new Map();
   const open = (url: string): void => {
     const socket: FakeSocket = {
@@ -229,19 +231,25 @@ function fakeLib() {
     urls,
     sockets,
     unreachable,
-    // While set, a join throws after setting up its clients, before there is a room. Unlike Trystero after a throw
-    // later in joinRoom, the next join sets up clients again (see enter in trystero.ts).
-    failJoins: false,
+    // While set, a join throws before there is a room. With true it throws after setting up its clients but before they
+    // count as set up, so the next join sets up clients again. With 'afterInit' it throws after Trystero marks them set
+    // up (its didInit), as a throw while making the offer pool's first connection does: until a room is left, every join
+    // is given those clients, whatever URLs it asks for (see enter in trystero.ts).
+    failJoins: false as boolean | 'afterInit',
     lib: {
       getRelaySockets: () => sockets,
       joinRoom: ((config: { relayConfig: { urls: string[] } }, roomId: string) => {
         urls.push(config.relayConfig.urls);
-        for (const [id, room] of occupied) if (room.isLeft()) occupied.delete(id);
+        // Like Trystero's onSelfLeave: leaving the last active room resets didInit.
+        let leftOne = false;
+        for (const [id, room] of occupied) if (room.isLeft()) { occupied.delete(id); leftOne = true; }
+        if (leftOne && occupied.size === 0) stuckInit = false;
         const existing = occupied.get(roomId);
         if (existing) return existing;
-        if (occupied.size === 0) {
+        if (occupied.size === 0 && !stuckInit) {
           initUrls = config.relayConfig.urls;
           for (const url of initUrls) if (!sockets[url]) open(url);
+          if (fake.failJoins === 'afterInit') stuckInit = true;
         }
         if (fake.failJoins) throw new Error('join failed');
         const roomUrls = initUrls;
@@ -1025,7 +1033,7 @@ describe('createTrysteroTransport resume', () => {
     warn.mockRestore();
   });
 
-  it('survives a rejoin whose join throws: it closes what that join opened, and the next resume tries again', async () => {
+  it('survives a rejoin whose join throws: it keeps what that join opened for the next resume, which tries again', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { fake, rooms, t, page, openSockets } = setUp();
     fake.failJoins = true;
@@ -1037,15 +1045,90 @@ describe('createTrysteroTransport resume', () => {
     expect(warn).toHaveBeenCalled();
     expect(t.peers()).toEqual([]);
     await expect(t.send('alice', new Uint8Array(1))).rejects.toThrow();
-    expect(openSockets()).toEqual([]);
+    // Trystero may keep these clients for the next join, so they stay open and the next join asks for them.
+    expect(openSockets()).toEqual(['wss://a.example/?rejoin=1']);
     fake.failJoins = false;
     t.resume!();
     await vi.advanceTimersByTimeAsync(1000);
     expect(rooms).toHaveLength(2);
     rooms[1]!.connect('alice');
     expect(t.status('alice')).toBe('direct');
-    expect(openSockets()).toEqual(['wss://a.example/?rejoin=2']);
+    expect(openSockets()).toEqual(['wss://a.example/?rejoin=1']);
     warn.mockRestore();
+  });
+
+  it('gets the direct path back after a join that threw once Trystero had set its clients up', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { fake, rooms, t, page, openSockets } = setUp();
+    fake.failJoins = 'afterInit';
+    rooms[0]!.connect('alice').connectionState = 'closed';
+    page.hide();
+    page.show();
+    t.resume!();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(t.peers()).toEqual([]);
+    fake.failJoins = false;
+    t.resume!();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(rooms).toHaveLength(2);
+    // Trystero gave the new room the clients the failed join set up, so they must still be open.
+    expect(openSockets().length).toBeGreaterThan(0);
+    rooms[1]!.connect('alice');
+    expect(t.status('alice')).toBe('direct');
+    warn.mockRestore();
+  });
+
+  it('gives the page\'s next transport the clients a failed rejoin kept, after the first was left', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { fake, rooms, t, page, openSockets } = setUp();
+    fake.failJoins = 'afterInit';
+    rooms[0]!.connect('alice').connectionState = 'closed';
+    page.hide();
+    page.show();
+    t.resume!();
+    await vi.advanceTimersByTimeAsync(1000);
+    t.leave();
+    await vi.advanceTimersByTimeAsync(1000);
+    fake.failJoins = false;
+    const second = createTrysteroTransport(options, fake.lib, fakePage());
+    expect(rooms).toHaveLength(2);
+    expect(openSockets().length).toBeGreaterThan(0);
+    rooms[1]!.connect('bob');
+    expect(second.status('bob')).toBe('direct');
+    warn.mockRestore();
+  });
+
+  it('ignores a failed join of another transport while the first still had its room, once that room rejoins', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { fake, rooms, t, page, openSockets } = setUp();
+    // The second transport's join throws while the first has a room: Trystero is not stuck, as its init already succeeded.
+    fake.failJoins = true;
+    expect(() => createTrysteroTransport({ ...options, roomId: 'other' }, fake.lib, fakePage())).toThrow('join failed');
+    fake.failJoins = false;
+    // The first rejoins: its plain URLs are retired and swept once its old room is left.
+    rooms[0]!.connect('alice').connectionState = 'closed';
+    page.hide();
+    page.show();
+    t.resume!();
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(rooms).toHaveLength(2);
+    expect(openSockets()).not.toContain('wss://a.example');
+    expect(openSockets().length).toBeGreaterThan(0);
+    rooms[1]!.connect('alice');
+    expect(t.status('alice')).toBe('direct');
+    warn.mockRestore();
+  });
+
+  it('gives the page\'s next transport the clients a failed first join kept', () => {
+    const fake = fakeLib();
+    fake.failJoins = 'afterInit';
+    expect(() => createTrysteroTransport(options, fake.lib, fakePage())).toThrow('join failed');
+    fake.failJoins = false;
+    const second = createTrysteroTransport(options, fake.lib, fakePage());
+    expect(fake.rooms).toHaveLength(1);
+    expect(fake.openSockets().length).toBeGreaterThan(0);
+    fake.rooms[0]!.connect('bob');
+    expect(second.status('bob')).toBe('direct');
   });
 
   it('survives a rejoin whose new room refuses the message channel', async () => {

@@ -28,8 +28,8 @@ h1, h2, h3 { font-family: var(--rb-font-display); font-weight: var(--rb-display-
 .site-quiet { color: var(--ink); }
 
 /* Top bar: the name is the design system's .rb-wordmark */
-.site-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding-block: var(--space-4); }
-.site-top-links { display: flex; align-items: center; gap: var(--space-4); }
+.site-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); padding-block: var(--space-4); }
+.site-top-links { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); }
 
 /* Sections */
 .site-section { padding-block: var(--space-8); }
@@ -47,6 +47,10 @@ h1, h2, h3 { font-family: var(--rb-font-display); font-weight: var(--rb-display-
 .site-illo { display: grid; gap: var(--space-3); width: 100%; max-width: 280px; padding: var(--space-3); box-sizing: border-box; background: var(--sunken); border-radius: var(--rb-radius-card); }
 .site-illo .rb-input { color: var(--ink-soft); }
 .site-illo .rb-btn { pointer-events: none; }
+/* The time's-up still is narrower than its three choices side by side: stack them, and keep the card inside its frame. */
+.site-illo .rb-timeup { box-sizing: border-box; min-width: 0; }
+.site-illo .rb-choices { grid-template-columns: 1fr; }
+.site-illo .rb-choice { min-width: 0; overflow-wrap: anywhere; }
 
 .site-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-8); }
 .site-steps h3 { margin: var(--space-4) 0 var(--space-2); font-size: var(--rb-column-size); }

@@ -8,6 +8,7 @@ import { FakeScheduler } from '../test/fake-scheduler';
 import { BOARD, TestRoom } from '../test/sessions';
 import { sleep, waitFor } from '../test/wait';
 import { settle } from '../test/settle';
+import { PROTOCOL_VERSION } from '../protocol/version';
 import { RESEND_AFTER_MS, MAX_WAIT_MS } from './outbox';
 
 const joined = (p: { session: { state: { attendees: Record<string, unknown> } | null }; id: string }) =>
@@ -24,7 +25,7 @@ describe('protocol 2 hellos and commands', () => {
     const ann = await room.person('Ann');
     await waitFor(() => joined(ann));
     const hello = JSON.parse(fromUtf8(await unseal(room.roomKey, firstFrames[0])));
-    expect(JSON.parse(hello.body)).toMatchObject({ t: 'hello', pv: 3, boardId: BOARD, name: 'Ann' });
+    expect(JSON.parse(hello.body)).toMatchObject({ t: 'hello', pv: PROTOCOL_VERSION, boardId: BOARD, name: 'Ann' });
   });
 
   it('ignores a hello for another meeting', async () => {

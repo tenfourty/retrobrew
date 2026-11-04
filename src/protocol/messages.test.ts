@@ -7,8 +7,8 @@ const sid = newSid(1_760_000_000_000);
 describe('parseToHost', () => {
   it('reads a hello in either layout; a hello without pv is protocol 1', () => {
     expect(parseToHost({ t: 'hello', name: 'Ann', peer: 'p1' }, 1)).toEqual({ t: 'hello', pv: 1, boardId: null, name: 'Ann', peer: 'p1' });
-    expect(parseToHost({ t: 'hello', pv: 3, boardId: 'b1', name: 'Ann', peer: 'p1' }, 1))
-      .toEqual({ t: 'hello', pv: 3, boardId: 'b1', name: 'Ann', peer: 'p1' });
+    expect(parseToHost({ t: 'hello', pv: 4, boardId: 'b1', name: 'Ann', peer: 'p1' }, 1))
+      .toEqual({ t: 'hello', pv: 4, boardId: 'b1', name: 'Ann', peer: 'p1' });
   });
 
   it('reads commands and pings only in protocol 2, and only when well formed', () => {

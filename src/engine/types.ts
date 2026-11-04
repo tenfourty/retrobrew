@@ -68,6 +68,15 @@ export interface BoardState {
   endedAt: number | null;
   // topicIds in the order they were finished.
   discussedOrder: number[];
+  // What "Move on" cleared when it decided an open time-up vote, so "Undo" can put it back. Never in a view.
+  // Cleared when another topic starts or the meeting ends or goes back to topics.
+  moveOnUndo?: MoveOnUndo | null;
+}
+
+export interface MoveOnUndo {
+  topicId: number;
+  timer: NonNullable<BoardState['timer']>;
+  continueVote: ContinueVote;
 }
 
 // What one viewer is sent. It never holds anyone's voter IDs, the vote's
@@ -172,6 +181,7 @@ export type Command =
   | { type: 'restartTimer'; topicId: number; minutes: number; realMinutes?: boolean }
   | { type: 'returnTopic'; topicId: number }
   | { type: 'finishTopic'; topicId: number }
+  | { type: 'undoMoveOn'; topicId: number }
   // choice is any string here; the engine refuses an unknown one with badChoice.
   | { type: 'voteToContinue'; topicId: number; round: number; choice: string }
   | { type: 'extendTopic'; topicId: number; round: number; minutes: number }

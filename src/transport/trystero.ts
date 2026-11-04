@@ -93,6 +93,11 @@ interface PageSignalling {
   // The page's rooms, and the URLs of the clients Trystero set up for them.
   rooms: number;
   clients: string[];
+  // The URLs of the last join that threw while the page had no room, until a join succeeds (see enter). Page-wide, so
+  // the page's next transport asks for them too, taking them in place of its own relays: that is right because the relay
+  // list is the same for the whole page (src/config.ts). A successful join clears it for every transport, which is safe:
+  // any enter() with rooms == 0 asked for these URLs, and with rooms > 0 used page.clients.
+  failed: string[] | null;
   rejoins: number;
   // The leave in progress of each room ID: Trystero answers a join of a room it is still leaving with that room.
   leaving: Map<string, Promise<boolean>>;
@@ -109,7 +114,7 @@ function pageSignalling(lib: TrysteroLib): PageSignalling {
   let page = pages.get(lib);
   if (page) return page;
   const created: PageSignalling = {
-    retired: new Set(), rooms: 0, clients: [], rejoins: 0, leaving: new Map(),
+    retired: new Set(), rooms: 0, clients: [], failed: null, rejoins: 0, leaving: new Map(),
     closed: new WeakSet(), sweepStartedAt: 0, sweepUntil: 0, sweepTimer: undefined,
   };
   pages.set(lib, created);
@@ -121,6 +126,7 @@ function pageSignalling(lib: TrysteroLib): PageSignalling {
 // the room's own, unless one of them is retired, then a set marked afresh.
 function relaysToJoin(page: PageSignalling, relays: string[]): string[] {
   if (page.rooms > 0) return page.clients;
+  if (page.failed) return page.failed;
   if (relays.every((url) => !page.retired.has(url))) return relays;
   return relaysForJoin(relays, ++page.rejoins);
 }
@@ -341,14 +347,18 @@ export function createTrysteroTransport(
     return leaving;
   };
 
-  // Joins the room and counts it for the page. Throws if Trystero does; the URLs it tried are then retired, as their
-  // clients' sockets are closed. This assumes the throw came from setting up the clients, before Trystero marks them
-  // set up (its didInit), as the tests' fake models. A later throw (making its offer pool's first connection, say)
-  // leaves them marked with no room, so until a room is left Trystero gives the next join those closed clients, and
-  // that room has no direct path; such a throw would most likely recur at every join anyway.
+  // Joins the room and counts it for the page. Throws if Trystero does. Whether the clients that join set up are then
+  // marked set up (Trystero's didInit) depends on where it threw, and from outside there is no telling: a throw while
+  // setting them up leaves them unmarked, one after (making its offer pool's first connection, say) leaves them marked
+  // with no room, and until a room is left Trystero gives every join those clients, whatever URLs it asks for.
+  // So the clients are kept, not closed or retired, and recorded page-wide (`signalling.failed`): the next
+  // join, by this transport or by the page's next one (Retry, a new meeting), asks for the same URLs, is given these
+  // clients if Trystero kept them, and makes them again over the same sockets if not. A join that has a room clears the
+  // record. Deliberate trade-offs: the kept sockets stay open, with no timeout, until a later join uses them or the page
+  // goes; and a throw after Trystero subscribed this room to the relays (strategy.mjs:222) leaves a ghost room announcing
+  // on them, which only a later room's leave ends (theoretical: such a throw would most likely recur at every join).
   const enter = () => {
     const relays = relaysToJoin(signalling, o.relays);
-    const before = new Set(Object.values(lib.getRelaySockets()));
     let room: Room;
     try {
       room = lib.joinRoom(
@@ -357,11 +367,12 @@ export function createTrysteroTransport(
         { onJoinError: (details) => console.warn('[retrobrew] direct connection failed', details) },
       );
     } catch (error) {
-      // joinRoom can open signalling sockets and then throw: close the ones this call opened, and only those.
-      for (const socket of Object.values(lib.getRelaySockets())) if (!before.has(socket)) closeSocket(socket);
-      for (const url of relays) signalling.retired.add(url);
+      // Only with no room: a live room means Trystero's init already succeeded, so it cannot be stuck, and the record
+      // would outlive that room and name clients its exit may retire and sweep.
+      if (signalling.rooms === 0) signalling.failed = relays;
       throw error;
     }
+    signalling.failed = null;
     signalling.rooms += 1;
     signalling.clients = relays;
     let channel: Channel;

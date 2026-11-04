@@ -72,3 +72,10 @@ export function joinRefusalText(joinRefused: string | null): string | null {
   if (joinRefused === null) return null;
   return Object.hasOwn(MESSAGES, joinRefused) ? (MESSAGES as Record<string, string>)[joinRefused] : MESSAGES.badCommand;
 }
+
+// The connecting panel's heading once the facilitator has answered: the host's first view carries the meeting's name
+// even before it lists this person as an attendee. Before any answer the name is not known, so there is no heading.
+export function joiningTitle(boardName: string | undefined): string | null {
+  const name = boardName?.trim();
+  return name ? `Joining ${name}` : null;
+}

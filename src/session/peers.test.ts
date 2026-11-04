@@ -7,6 +7,7 @@ import type { BoardState, Command } from '../engine/types';
 import { openBundle, openItem } from '../protocol/bundle';
 import { decodeFrame, encodeWire, sealEnvelope } from '../protocol/envelope';
 import { newSid, sidCreatedAt } from '../protocol/sid';
+import { PROTOCOL_VERSION } from '../protocol/version';
 import { FakeScheduler } from '../test/fake-scheduler';
 import { fresh } from '../test/hello';
 import { BOARD, TestRoom } from '../test/sessions';
@@ -127,7 +128,7 @@ describe('peer records are keyed by transport peer and signing key', () => {
     const mallory = await signerFrom(await generateSigningKeys(false));
     const forged = async (msg: unknown, pv: 1 | 2) => encodeWire(room.roomKey, await sealEnvelope(mallory, msg), pv);
     // Mallory claims to be the transport peer 'Ann', with her own key.
-    room.relay.deliver('Ann', 'host', await forged({ t: 'hello', pv: 3, boardId: BOARD, name: 'Mallory', peer: 'Ann', ...fresh() }, 1));
+    room.relay.deliver('Ann', 'host', await forged({ t: 'hello', pv: PROTOCOL_VERSION, boardId: BOARD, name: 'Mallory', peer: 'Ann', ...fresh() }, 1));
     room.relay.deliver('Ann', 'host', await forged({ t: 'cmd', peer: 'Ann', boardId: BOARD, clientSeq: 1, sid: newSid(Date.now()), epoch: 1, cmd: { type: 'addTopic', text: 'Forged' } }, 2));
     room.relay.deliver('Ann', 'host', await forged({ t: 'ping', boardId: BOARD, sid: ann.session.sid, n: 1000, at: Date.now(), t0: 1, peer: 'Ann' }, 2));
     await waitFor(() => host.current.topics.length === 1);
@@ -351,7 +352,7 @@ describe('bounded peer records', () => {
       const peer = `p${i}`;
       room.relay.join(peer);
       room.relay.deliver(peer, 'host', await encodeWire(room.roomKey,
-        await sealEnvelope(mallory, { t: 'hello', pv: 3, boardId: BOARD, name: 'Mallory', peer, ...fresh() }), 1));
+        await sealEnvelope(mallory, { t: 'hello', pv: PROTOCOL_VERSION, boardId: BOARD, name: 'Mallory', peer, ...fresh() }), 1));
     }
     const id = await malloryId;
     await waitFor(() => host.presence().some((p) => p.peerId === 'p49'));
@@ -406,7 +407,7 @@ describe('probationary peer records', () => {
     };
     return {
       signer, id,
-      hello: (peer: string) => deliver(peer, { t: 'hello', pv: 3, boardId: BOARD, name: 'Mallory', peer, ...fresh() }, 1),
+      hello: (peer: string) => deliver(peer, { t: 'hello', pv: PROTOCOL_VERSION, boardId: BOARD, name: 'Mallory', peer, ...fresh() }, 1),
       ping: (peer: string) => {
         if (!sids.has(peer)) sids.set(peer, newSid(Date.now()));
         const n = (counts.get(peer) ?? 0) + 1;
@@ -433,7 +434,7 @@ describe('probationary peer records', () => {
       const peer = `old${i}`;
       room.relay.join(peer);
       room.relay.deliver(peer, 'host', await encodeWire(room.roomKey,
-        await sealEnvelope(ann.signer, { t: 'hello', pv: 3, boardId: BOARD, name: 'Ann', peer, ...fresh() }), 1));
+        await sealEnvelope(ann.signer, { t: 'hello', pv: PROTOCOL_VERSION, boardId: BOARD, name: 'Ann', peer, ...fresh() }), 1));
       await waitFor(() => host.presence().some((p) => p.peerId === peer) || peersOf(host, ann.id).length === PEER_RECORDS_PER_SIGNER);
       await settle(HEAVY_SETTLE_MS);
       expect(peersOf(host, ann.id)).toContain('Ann');
@@ -535,7 +536,7 @@ describe('probationary records see only the shared view', () => {
     room.direct.join('ghost');
     await settle(HEAVY_SETTLE_MS);
     room.direct.deliver('ghost', 'host', await encodeWire(room.roomKey,
-      await sealEnvelope(ann.signer, { t: 'hello', pv: 3, boardId: BOARD, name: 'Ann', peer: 'ghost', ...fresh() }), 1));
+      await sealEnvelope(ann.signer, { t: 'hello', pv: PROTOCOL_VERSION, boardId: BOARD, name: 'Ann', peer: 'ghost', ...fresh() }), 1));
     await stepUntil(scheduler, () => toGhost.length > 0);
     // Spaced past the 150 ms coalescing window, so each is a flush of its own.
     await step(scheduler, 200);
@@ -576,7 +577,7 @@ describe('probationary records see only the shared view', () => {
     room.relay.join('p0');
     await settle(HEAVY_SETTLE_MS);
     // A hello over the relay alone: a probationary record whose views can only be bundles.
-    room.relay.deliver('p0', 'host', await encodeWire(room.roomKey, await sealEnvelope(signer, { t: 'hello', pv: 3, boardId: BOARD, name: 'Ann', peer: 'p0', ...fresh() }), 1));
+    room.relay.deliver('p0', 'host', await encodeWire(room.roomKey, await sealEnvelope(signer, { t: 'hello', pv: PROTOCOL_VERSION, boardId: BOARD, name: 'Ann', peer: 'p0', ...fresh() }), 1));
     await waitFor(() => host.presence().some((p) => p.peerId === 'p0'));
     await step(scheduler, 700); // the join reply, in the next relay slot
     await host.local({ type: 'addTopic', text: 'Another' });
@@ -615,7 +616,7 @@ describe('probationary records see only the shared view', () => {
       const peer = `old${n++}`;
       room.relay.join(peer);
       room.relay.deliver(peer, 'host', await encodeWire(room.roomKey,
-        await sealEnvelope(ann.signer, { t: 'hello', pv: 3, boardId: BOARD, name: 'Ann', peer, ...fresh() }), 1));
+        await sealEnvelope(ann.signer, { t: 'hello', pv: PROTOCOL_VERSION, boardId: BOARD, name: 'Ann', peer, ...fresh() }), 1));
       await waitFor(() => host.presence().some((p) => p.peerId === peer));
     };
     for (let i = 0; i < 7; i++) await replay(); // every spare slot is taken

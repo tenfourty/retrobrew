@@ -19,7 +19,7 @@ describe('outcomeBetween', () => {
   });
 
   it('reads the voted topic reaching Discussed as moving on', () => {
-    expect(outcomeBetween(voting, { vote: null, timer: null, topics: [topic('discussed')] })).toEqual({ kind: 'movedOn' });
+    expect(outcomeBetween(voting, { vote: null, timer: null, topics: [topic('discussed')] })).toEqual({ kind: 'movedOn', topicId: 4 });
   });
 
   it('gives no line for anything else: still voting, stopped, returned, or no vote before', () => {

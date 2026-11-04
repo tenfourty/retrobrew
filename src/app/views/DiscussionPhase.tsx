@@ -7,7 +7,10 @@ import { Button, Column, ColumnGroup, DialTimer } from '../../ui/components';
 import { StatusStrip } from '../../ui/status-strip';
 import { TabPanel, Tabs } from '../../ui/tabs';
 import { countdownAnnouncement } from '../announce';
+import { toDiscussEmpty } from '../discussion-copy';
+import { TIME_UP_WAITING, timeUpWaiting } from '../host-away';
 import { useAnnounce } from '../announcer';
+import { KEEP_GOING_VOTE } from '../decision';
 import { lengthLabel } from '../lengths';
 import { STRIP_IDLE, stripContent, switchToDiscussing } from '../status-strip';
 import { useInset } from '../use-inset';
@@ -32,7 +35,7 @@ function useTicking(on: boolean): void {
 // when the sheet they open closes.
 export function DiscussionPhase(props: {
   view: ViewState; you: string; facilitator: boolean; readOnly: boolean; votesLeft: number; wide: boolean;
-  hostNow: () => number; typing: boolean; outcome: ComponentChildren;
+  hostNow: () => number; hostAway: boolean; typing: boolean; outcome: ComponentChildren;
   // The round of the last timer whose countdown was said. MeetingScreen keeps it, so this view remounting (the layout
   // flipping, the phase going to topics and back) never says "1 minute left" twice for one timer. Every timer has its own
   // round, so a timer started by "keep going" is counted down again.
@@ -77,6 +80,13 @@ export function DiscussionPhase(props: {
       announce(countdown);
     }
   });
+  // The outcome line and the facilitator-away note share one slot that always keeps a line's height, so a line coming and
+  // going never moves the column or the tabs.
+  const slot = (note: ComponentChildren) => <div className="mtg-outcome-slot">{note}</div>;
+  // A guest whose timer ran out while the facilitator is away: the vote can only open on the facilitator's device.
+  const waiting = timeUpWaiting(props.hostAway, view, remaining);
+  useEffect(() => { if (waiting) announce(TIME_UP_WAITING); }, [waiting]);
+  const away = waiting ? <p className="rb-hint mtg-away-note">{TIME_UP_WAITING}</p> : null;
   const item = (t: TopicView) => (
     <TopicItem key={t.topicId} topic={t} view={view} you={props.you} facilitator={props.facilitator} readOnly={props.readOnly}
       votesLeft={props.votesLeft} send={(cmd) => props.send(cmd, `card:${t.topicId}`)} onDelete={props.onDelete}
@@ -84,7 +94,7 @@ export function DiscussionPhase(props: {
   );
 
   const toDiscussColumn = (
-    <Column state="todiscuss" focusable count={toDiscuss.length} empty="Every topic has been discussed. Add another, or go back to topics to collect more.">
+    <Column state="todiscuss" focusable count={toDiscuss.length} empty={toDiscussEmpty(props.facilitator)}>
       {voted.map(item)}
       {voted.length > 0 && unvoted.length > 0 ? <ColumnGroup>No votes yet</ColumnGroup> : null}
       {unvoted.map(item)}
@@ -101,7 +111,7 @@ export function DiscussionPhase(props: {
             <DialTimer remaining={remaining} total={(timer.endsAt - timer.startedAt) / 1000} warnAt={timer.minuteMs / 1000} up={view.vote !== null}
               sub={`of ${lengthLabel(timer.endsAt - timer.startedAt)}`} />
           ) : <p className="mtg-no-timer">No timer</p>}
-          {wide && view.vote ? <div><Button variant="secondary" size="sm" onClick={(e) => props.onOpenVote(e.currentTarget)}>Vote</Button></div> : null}
+          {wide && view.vote ? <div><Button variant="secondary" size="sm" onClick={(e) => props.onOpenVote(e.currentTarget)}>{KEEP_GOING_VOTE}</Button></div> : null}
         </TopicItem>
       ) : null}
     </Column>
@@ -110,16 +120,16 @@ export function DiscussionPhase(props: {
 
   // Wide: the outcome line sits at the top of the Discussing column.
   if (wide) {
-    return <div className="mtg-columns">{toDiscussColumn}<div className="mtg-discussing">{props.outcome}{discussingColumn}</div>{discussedColumn}</div>;
+    return <div className="mtg-columns">{toDiscussColumn}<div className="mtg-discussing">{slot(<>{props.outcome}{away}</>)}{discussingColumn}</div>{discussedColumn}</div>;
   }
 
   const strip = stripContent(view, remaining);
   return (
     <div className="mtg-discussion">
       <div className="mtg-sticky" ref={top}>
-        <StatusStrip label={strip.label} focusFallback={!props.facilitator} idleText={STRIP_IDLE} number={strip.number} text={strip.short} end={strip.end} chip={strip.chip}
+        <StatusStrip label={strip.label} focusFallback={!props.facilitator} idleText={STRIP_IDLE} number={strip.number} text={strip.short} end={strip.end} chip={strip.chip} chipLabel={KEEP_GOING_VOTE}
           up={view.vote !== null} onOpen={() => setTab('discussing')} onChip={props.onOpenVote} />
-        {props.outcome}
+        {slot(<>{props.outcome}{away}</>)}
         <Tabs label="Discussion" base="discussion" selected={tab} onSelect={setTab} tabs={[
           { id: 'todiscuss', label: 'To discuss', count: toDiscuss.length, state: 'todiscuss' },
           { id: 'discussing', label: 'Discussing', state: 'discussing' },

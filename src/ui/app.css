@@ -29,6 +29,8 @@ body { margin: 0; background: var(--desk); color: var(--ink); font-family: var(-
 .mtg { box-sizing: border-box; width: 100%; max-width: 1240px; margin: 0 auto; padding: 0 var(--space-4) var(--space-8); display: grid; gap: var(--space-4); }
 .mtg .mtg-top { padding: var(--space-4) 0 0; align-items: flex-start; }
 .mtg-heading { display: grid; gap: 2px; min-width: 0; }
+.mtg-guide { display: grid; justify-items: start; gap: 2px; }
+.mtg-guide > a { display: inline-flex; align-items: center; min-height: 44px; }
 .mtg-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .mtg .rb-title { overflow-wrap: anywhere; }
 .mtg-top-end { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
@@ -57,6 +59,14 @@ html { scroll-padding-bottom: var(--mtg-bottom, 0px); }
 .mtg-controls-end { padding-top: var(--space-3); border-top: 1.5px solid var(--rule); }
 .mtg-dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; display: grid; gap: var(--space-2);
   padding: var(--space-2) var(--space-4) calc(var(--space-2) + env(safe-area-inset-bottom)); background: var(--card); border-top: 1.5px solid var(--rule); }
+/* On phones the add box in the dock is one compact row, the field and its button; the name hint shows only while the box has
+   focus (the facilitator's bar is hidden then, so the dock has room). Nothing in the dock wraps to a second row until then. */
+.mtg-dock .mtg-add { gap: 0; }
+.mtg-dock .rb-add { flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
+.mtg-dock .rb-add .rb-input { flex: 1 1 120px; }
+.mtg-dock .rb-add .rb-btn { flex: 0 0 auto; }
+.mtg-dock .rb-add:not(:focus-within) :is(.rb-add-hint, .rb-add-cut) { display: none; }
+.mtg-link-field { resize: none; width: 100%; overflow-wrap: anywhere; word-break: break-all; font-family: var(--rb-font-body); }
 .mtg-copy-field { resize: vertical; font-family: var(--rb-font-body); }
 @media (min-width: 768px) {
   .mtg-with-side .mtg-body { grid-template-columns: minmax(0, 1fr) 280px; }
@@ -67,7 +77,7 @@ html { scroll-padding-bottom: var(--mtg-bottom, 0px); }
 @media (min-width: 768px) {
   .mtg-topics-with-discussed { grid-template-columns: minmax(0, 3fr) minmax(0, 1fr); }
   /* Wide: Ideas topics wrap in a grid; the heading, the note and the empty state span it. */
-  .mtg .mtg-pinboard { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  .mtg .mtg-pinboard { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); align-items: start; }
   .mtg .mtg-pinboard > :is(.rb-col-head, .rb-col-note, .rb-col-empty) { grid-column: 1 / -1; }
 }
 
@@ -75,6 +85,7 @@ html { scroll-padding-bottom: var(--mtg-bottom, 0px); }
 /* Each column keeps at least 260px: three side by side from 828px of main area, two from 544px, else stacked. Beside the
    facilitator's 280px panel a tablet at 768px gets one column; the DOM order (To discuss, Discussing, Discussed) stays. */
 .mtg-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-6); align-items: start; }
+.mtg-outcome-slot { display: grid; align-content: start; min-height: calc(2 * var(--space-2) + 1.5em); }
 .mtg-discussing { display: grid; gap: var(--space-3); align-content: start; min-width: 0; }
 .mtg-discussion { display: grid; gap: var(--space-4); min-width: 0; }
 /* Phones: the status strip and the tabs stay at the top; --mtg-top is their height, for scroll-padding. */
@@ -92,3 +103,14 @@ html { scroll-padding-top: var(--mtg-top, 0px); }
 .mtg-sound { display: grid; gap: var(--space-2); }
 .mtg-sound-row { display: flex; align-items: flex-end; gap: var(--space-2); }
 .mtg-sound-row > .rb-field { flex: 1 1 auto; }
+
+/* "Change" beside the add box's name hint: a button that reads as a link. */
+.rb-add-action { display: inline; background: none; border: 0; padding: 4px 2px; font: inherit; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.rb-add-action:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* The time-up sheet's two headings, "Your vote" and "Your decision", and the line saying where the votes lean. */
+.rb-timeup .rb-timeup-heading { margin: 0; font-family: inherit; font-size: 14px; font-weight: 700; line-height: 1.3; color: var(--ink); }
+.rb-timeup .mtg-leaning { color: var(--ink); font-weight: 700; }
+/* Undo beside the Moved on line. */
+.rb-outcome-row { display: flex; align-items: center; gap: var(--space-2); }
+.rb-outcome-row .rb-outcome { flex: 1 1 auto; }

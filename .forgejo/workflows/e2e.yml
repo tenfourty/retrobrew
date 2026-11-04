@@ -82,6 +82,18 @@ jobs:
       - name: battery
         run: npm run test:e2e
 
+      # Only a failed run keeps them: the traces (retain-on-failure) and the HTML report, for a flake that does not recur on demand.
+      - name: upload traces
+        if: failure()
+        uses: actions/upload-artifact@ff15f0306b3f739f7b6fd43fb5d26cd321bd4de5 # v3
+        with:
+          name: e2e-failure
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 5
+          if-no-files-found: warn
+
       - name: relay log
         if: failure()
         run: docker logs --tail 50 retrobrew-e2e-relay || true

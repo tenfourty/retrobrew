@@ -11,8 +11,9 @@ export const COPY = {
   hostOffline: "The facilitator's device is offline. You can still read the board, and it updates when they're back.",
   pendingFailed: "Your last change didn't reach the facilitator.",
   staleTab: MESSAGES.staleTab,
-  persistenceRefused: "This browser hasn't promised to keep this meeting. Back up the meeting file when you finish, and don't use a private window.",
+  storageNotice: 'Make a backup now and then: this browser may clear saved meetings when space runs low',
   saveFailed: "This device couldn't save the meeting. Keep this page open and back up the meeting file.",
+  otherBrowser: 'This meeting is also open as facilitator in another browser. Close it in one of them, or changes made in each will not match.',
   oversize: "This meeting is too big to send to everyone in one go. It runs as normal, but new topics and people can't be added until some topics are deleted.",
   overLimits: "This meeting is bigger than Retrobrew's limits. It runs as normal, but new topics and people can't be added until some topics are deleted.",
   connecting: 'Connecting to the facilitator…',
@@ -25,6 +26,9 @@ export type BannerAction = 'reload' | 'retry' | 'backUp' | 'dismiss';
 
 // How long an outcome line shows (docs/product/mvp-screens.md, Outcome lines).
 export const OUTCOME_MS = 5000;
+// Moving on shows its line, with Undo beside it for the facilitator, for this long.
+export const UNDO_MS = 10_000;
+export const outcomeMs = (outcome: { kind: string }): number => (outcome.kind === 'movedOn' ? UNDO_MS : OUTCOME_MS);
 
 export interface Banner {
   text: string;
@@ -57,18 +61,23 @@ export function participantBanner(s: ParticipantSignals): Banner | null {
 export interface HostSignals {
   connection: Connection;
   saveFailed: boolean;
-  // navigator.storage.persist() didn't grant persistence when the meeting was created, and it hasn't been dismissed.
-  persistenceRefused?: boolean;
+  // The calm storage notice, shown on every meeting this browser hosts until it is dismissed (it does not depend on what the
+  // browser answered to navigator.storage.persist()).
+  storageNotice?: boolean;
   overLimits: boolean;
   oversize: boolean;
+  // Another page is hosting this meeting with the same key (HostSession.otherBrowser).
+  otherBrowser?: boolean;
 }
 
 export function hostBanner(s: HostSignals): Banner | null {
   if (s.connection === 'noRelays') return { text: COPY.noRelays };
   if (s.saveFailed) return { text: COPY.saveFailed, action: 'backUp' };
-  if (s.persistenceRefused) return { text: COPY.persistenceRefused, action: 'dismiss' };
+  if (s.otherBrowser) return { text: COPY.otherBrowser };
+  // Trouble with the meeting itself outranks the notice, which is always there and only advice.
   if (s.overLimits) return { text: COPY.overLimits };
   if (s.oversize) return { text: COPY.oversize };
+  if (s.storageNotice) return { text: COPY.storageNotice, action: 'dismiss' };
   return null;
 }
 

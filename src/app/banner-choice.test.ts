@@ -35,6 +35,6 @@ describe('bannerTone', () => {
     expect(bannerTone(COPY.noRelays)).toBe('warning');
     expect(bannerTone(COPY.overLimits)).toBe('warning');
     expect(bannerTone(COPY.oversize)).toBe('warning');
-    expect(bannerTone(COPY.persistenceRefused)).toBe('info');
+    expect(bannerTone(COPY.storageNotice)).toBe('info');
   });
 });

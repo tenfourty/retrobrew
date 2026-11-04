@@ -36,6 +36,7 @@ export function App({ store }: { store: BoardStore }) {
         <StatePanel>
           <h1 className="app-panel-title">This link isn't complete</h1>
           <p>Ask the facilitator to share the meeting link again.</p>
+          <p>Or <a className="rb-link" href="#start">start a meeting of your own</a>, or read <a className="rb-link" href="/lean-coffee/">how Lean Coffee works</a>.</p>
         </StatePanel>
       </StatePage>
     );

@@ -26,7 +26,8 @@ export default defineConfig({
   retries: RELAYS === 'public' ? 1 : 0,
   // One test at a time on the public relays, so we don't look like a flood.
   workers: RELAYS === 'public' ? 1 : 2,
-  reporter: process.env.CI ? 'list' : [['list'], ['html', { open: 'never' }]],
+  // The HTML report is written in CI too: the e2e workflow uploads it with the traces when the battery fails.
+  reporter: [['list'], ['html', { open: 'never' }]],
   globalSetup: RELAYS === 'local' ? './e2e/relay/global-setup.ts' : undefined,
   // Teardown also releases the run lock, which every run with its own web server holds.
   globalTeardown: process.env.E2E_BASE_URL ? undefined : './e2e/relay/global-teardown.ts',

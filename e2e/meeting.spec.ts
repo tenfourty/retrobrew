@@ -28,10 +28,10 @@ test('a host and two participants share topics and votes', { tag: '@public' }, a
     // Three votes each, then the Vote buttons are disabled.
     const card = topicCard(alice, topic);
     for (const left of ['2 votes left', '1 vote left', 'No votes left']) {
-      await card.getByRole('button', { name: 'Vote', exact: true }).click();
+      await card.getByRole('button', { name: /^Vote for / }).click();
       await expect(alice.getByText(left, { exact: true })).toBeVisible({ timeout: NETWORK_WAIT });
     }
-    for (const button of await alice.getByRole('button', { name: 'Vote', exact: true }).all()) await expect(button).toBeDisabled();
+    for (const button of await alice.getByRole('button', { name: /^Vote for / }).all()) await expect(button).toBeDisabled();
 
     // The host sees the count.
     await expect(topicCard(host, topic).getByRole('img', { name: /^3 votes/ })).toBeVisible();

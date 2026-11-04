@@ -44,7 +44,7 @@ describe('outcomes', () => {
     await until(scheduler, () => ann.session.state?.vote?.round === host.current.continueVote?.round);
     await host.local({ type: 'finishTopic', topicId: 1 });
     await until(scheduler, () => atAnn.length === 2);
-    expect(atAnn).toEqual([{ kind: 'extended', minutes: 2 }, { kind: 'movedOn' }]);
+    expect(atAnn).toEqual([{ kind: 'extended', minutes: 2 }, { kind: 'movedOn', topicId: 1 }]);
     expect(atHost).toEqual(atAnn);
     host.stop();
   });

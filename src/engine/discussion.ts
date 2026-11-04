@@ -28,6 +28,7 @@ function startTimer(next: BoardState, topicId: number, minutes: number, realMinu
     topicId, startedAt: now, endsAt: now + timeboxMs(next, minutes, realMinutes), round: next.voteRound, minuteMs: minuteMs(next, realMinutes),
   };
   next.continueVote = null;
+  next.moveOnUndo = null;
 }
 
 export function discussTopic(state: BoardState, cmd: CommandOf<'discussTopic'>, now: number): Result {
@@ -74,8 +75,27 @@ export function finishTopic(state: BoardState, cmd: CommandOf<'finishTopic'>): R
   const next = structuredClone(state);
   next.topics.find((t) => t.topicId === cmd.topicId)!.column = 'discussed';
   next.discussedOrder.push(cmd.topicId);
+  // Moving on from an open time-up vote can be undone: keep what it clears.
+  next.moveOnUndo = voteOpenFor(state, cmd.topicId, state.timer?.round ?? -1) && state.timer && state.continueVote
+    ? { topicId: cmd.topicId, timer: state.timer, continueVote: state.continueVote } : null;
   next.timer = null;
   next.continueVote = null;
+  return changed(next);
+}
+
+// Puts a topic that "Move on" just finished back as it was at time up: in Discussing, its timer at 0:00 and its
+// time-up vote open with the votes so far. Only while nothing else has started since.
+export function undoMoveOn(state: BoardState, cmd: CommandOf<'undoMoveOn'>): Result {
+  const undo = state.moveOnUndo;
+  const topic = state.topics.find((t) => t.topicId === cmd.topicId);
+  if (!undo || undo.topicId !== cmd.topicId || !topic || topic.column !== 'discussed' || state.phase !== 'discussion'
+    || discussing(state) || state.discussedOrder[state.discussedOrder.length - 1] !== cmd.topicId) return refuse('nothingToUndo');
+  const next = structuredClone(state);
+  next.topics.find((t) => t.topicId === cmd.topicId)!.column = 'discussing';
+  next.discussedOrder.pop();
+  next.timer = undo.timer;
+  next.continueVote = undo.continueVote;
+  next.moveOnUndo = null;
   return changed(next);
 }
 

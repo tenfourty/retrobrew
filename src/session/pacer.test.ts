@@ -21,6 +21,44 @@ describe('Pacer', () => {
     expect(log).toEqual(['direct full@0', 'bundle full@0', 'direct full@5000', 'bundle full@5000', 'direct full@10000', 'bundle full@10000']);
   });
 
+  it('sends the refresh of a resume at once, though a bundle went out in the same instant', () => {
+    const { pacer, log, scheduler } = setup();
+    pacer.start();
+    // A frozen page's overdue refresh timer runs just before its visibility event; that bundle went to a dead socket.
+    scheduler.advance(REFRESH_MS);
+    log.length = 0;
+    pacer.resume();
+    expect(log).toEqual(['direct full@5000', 'bundle full@5000']);
+    // The cycle restarts from it, and nothing doubles.
+    scheduler.advance(REFRESH_MS);
+    expect(log).toEqual(['direct full@5000', 'bundle full@5000', 'direct full@10000', 'bundle full@10000']);
+  });
+
+  it('sends the refresh of a resume at once when a change bundle waits for its slot', () => {
+    const { pacer, log, scheduler } = setup();
+    pacer.start();
+    scheduler.advance(1000);
+    pacer.change();
+    scheduler.advance(10);
+    pacer.change();
+    scheduler.advance(COALESCE_MS);
+    log.length = 0;
+    pacer.resume();
+    scheduler.advance(RELAY_GAP_MS * 2);
+    // One full bundle at once, and not the change bundle that was waiting after it.
+    expect(log.filter((l) => l.startsWith('bundle'))).toEqual(['bundle full@1160']);
+  });
+
+  it('keeps the relay gap on an ordinary refresh', () => {
+    const { pacer, log, scheduler } = setup();
+    pacer.start();
+    scheduler.advance(REFRESH_MS);
+    log.length = 0;
+    pacer.refresh();
+    scheduler.advance(RELAY_GAP_MS);
+    expect(log).toEqual(['direct full@5000', 'bundle full@5500']);
+  });
+
   it('flushes the first change at once and coalesces the rest of its 150 ms window into one flush', () => {
     const { pacer, log, scheduler } = setup();
     pacer.start();

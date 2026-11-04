@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ColumnId, TopicView, ViewState } from '../engine/types';
-import { barRow, phoneBar, wideBar, type BarRow } from './action-bar';
+import { barRow, controlsLeftOut, phoneBar, wideBar, type BarRow } from './action-bar';
 
 type Board = Pick<ViewState, 'phase' | 'topics' | 'timer' | 'vote' | 'discussedOrder'>;
 const topic = (topicId: number, column: ColumnId, votes = 0): TopicView => ({ topicId, text: `Topic ${topicId}`, column, position: topicId, authorId: 'a', votes, mine: 0 });
@@ -10,10 +10,10 @@ const labels = (row: BarRow) => [row.primary.label, ...row.secondaries.map((a) =
 
 describe('barRow', () => {
   it('follows the state table, first match first', () => {
-    expect(labels(barRow(board({ phase: 'ended', topics: [topic(1, 'discussed')] })))).toEqual(['Copy as text', 'Reopen meeting', 'Back up meeting file', 'Facilitator']);
+    expect(labels(barRow(board({ phase: 'ended', topics: [topic(1, 'discussed')] })))).toEqual(['Copy as text', 'Reopen meeting', 'Back up meeting file']);
     const discussing = [topic(1, 'toDiscuss'), topic(2, 'discussing')];
     expect(labels(barRow(board({ phase: 'discussion', topics: discussing, timer, vote: { topicId: 2, round: 1, voted: false, turnout: { voted: 0, here: 2 } } }))))
-      .toEqual(['Decide', 'Stop timer', 'Facilitator']);
+      .toEqual(['Decide', 'Facilitator']);
     expect(labels(barRow(board({ phase: 'discussion', topics: discussing, timer })))).toEqual(['Finish topic', 'Stop timer', 'Return topic', 'Facilitator']);
     expect(labels(barRow(board({ phase: 'discussion', topics: discussing })))).toEqual(['Finish topic', 'Start timer', 'Return topic', 'Facilitator']);
     expect(labels(barRow(board({ phase: 'discussion', topics: [topic(1, 'toDiscuss', 1), topic(4, 'toDiscuss', 3)] })))).toEqual(['Discuss #4', 'Facilitator']);
@@ -41,10 +41,10 @@ describe('phoneBar', () => {
     expect(bar.moreHasControls).toBe(true);
   });
 
-  it('keeps the Facilitator controls in More on an ended meeting', () => {
+  it('has no Facilitator controls in More on an ended meeting', () => {
     const bar = phoneBar(barRow(board({ phase: 'ended' })));
     expect(bar.more.map((a) => a.label)).toEqual(['Reopen meeting', 'Back up meeting file']);
-    expect(bar.moreHasControls).toBe(true);
+    expect(bar.moreHasControls).toBe(false);
   });
 });
 
@@ -53,6 +53,20 @@ describe('wideBar', () => {
     const bar = wideBar(barRow(board({ phase: 'topics', topics: [topic(1, 'ideas')] })));
     expect(bar.secondaries.map((a) => a.label)).toEqual(['Invite people']);
     expect(bar.controls).toBe(true);
-    expect(wideBar(barRow(board({ phase: 'ended' }))).controls).toBe(true);
+    expect(wideBar(barRow(board({ phase: 'ended' }))).controls).toBe(false);
+  });
+});
+
+describe('controlsLeftOut', () => {
+  const ideasView: Board = { phase: 'topics', topics: [topic(1, 'ideas')], timer: null, vote: null, discussedOrder: [] };
+  const discussingView: Board = { phase: 'discussion', topics: [topic(1, 'discussing')], timer: null, vote: null, discussedOrder: [] };
+  it('leaves out what the wide bar already shows, primary included', () => {
+    expect([...controlsLeftOut(barRow(ideasView), 'wide')]).toEqual(['invite']);
+    expect([...controlsLeftOut(barRow(discussingView), 'wide')]).toEqual(['returnTopic']);
+  });
+  it('leaves out what the More sheet already lists, and nothing from the Facilitator sheet', () => {
+    expect([...controlsLeftOut(barRow(ideasView), 'more')]).toEqual(['invite']);
+    expect([...controlsLeftOut(barRow(discussingView), 'more')]).toEqual(['returnTopic']);
+    expect(controlsLeftOut(barRow(ideasView), 'facilitator').size).toBe(0);
   });
 });

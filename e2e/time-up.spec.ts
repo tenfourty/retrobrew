@@ -19,7 +19,7 @@ test('everyone votes when time is up, the facilitator decides, and everyone sees
     await addTopic(host, 'Pairing rotation');
     await host.getByRole('button', { name: 'Start discussion' }).click();
 
-    await topicCard(host, 'Pairing rotation').getByRole('button', { name: 'Discuss', exact: true }).click();
+    await topicCard(host, 'Pairing rotation').getByRole('button', { name: /^Discuss (?!#\d+$)/ }).click();
     const picker = host.getByRole('dialog', { name: 'Discuss #1' });
     await expect(picker.getByText('Pairing rotation')).toBeVisible();
     const timeboxes = picker.getByRole('group', { name: 'Timebox' });
@@ -50,10 +50,10 @@ test('everyone votes when time is up, the facilitator decides, and everyone sees
     await expect(annSheet.getByText('Keep going 1 · No preference 0 · Move on 0')).toBeVisible({ timeout: NETWORK_WAIT });
     await expect(annSheet.getByText('1 of 3 present have voted')).toBeVisible();
 
-    // Closing leaves the vote open, and the Vote chip brings the sheet back.
+    // Closing leaves the vote open, and the Vote on keep going button brings the sheet back.
     await ben.keyboard.press('Escape');
     await expect(timeUpSheet(ben)).toHaveCount(0);
-    await topicCard(ben, 'Pairing rotation').getByRole('button', { name: 'Vote', exact: true }).click();
+    await topicCard(ben, 'Pairing rotation').getByRole('button', { name: 'Vote on keep going', exact: true }).click();
     await timeUpSheet(ben).getByRole('button', { name: 'Move on', exact: true }).click();
 
     // A tie puts Move on first; the facilitator's own Keep going tips it.
@@ -61,14 +61,19 @@ test('everyone votes when time is up, the facilitator decides, and everyone sees
     await expect(hostSheet.getByText('2 voted · 3 here')).toBeVisible({ timeout: NETWORK_WAIT });
     await expect(hostSheet.getByText('Keep going 1 · No preference 0 · Move on 1')).toBeVisible();
     await expect(hostSheet.getByRole('group', { name: 'Your vote' }).getByRole('button')).toHaveCount(3);
-    await expect(decision(host)).toHaveText(['Move on', 'Or keep going for 30 more seconds']);
+    await expect(decision(host)).toHaveText(['Move on', 'Keep going for 30 more seconds']);
+    await expect(hostSheet.getByText('The votes are split')).toBeVisible();
+    await expect(hostSheet.getByRole('heading', { name: 'Your vote' })).toBeVisible();
+    await expect(hostSheet.getByRole('heading', { name: 'Your decision' })).toBeVisible();
     await expect(hostSheet.getByText('Move on finishes #1 and moves it to Discussed.')).toBeVisible();
     await expectNoA11yViolations(host);
     await hostSheet.getByRole('group', { name: 'Your vote' }).getByRole('button', { name: 'Keep going', exact: true }).click();
-    await expect(decision(host)).toHaveText(['Keep going for 30 more seconds', 'Or move on']);
+    // The buttons keep their places; only the line above them follows the votes.
+    await expect(decision(host)).toHaveText(['Move on', 'Keep going for 30 more seconds']);
+    await expect(hostSheet.getByText('Most votes say keep going')).toBeVisible();
     await hostSheet.getByRole('group', { name: 'More time' }).getByRole('button', { name: '10 s', exact: true }).click();
-    await expect(decision(host)).toHaveText(['Keep going for 10 more seconds', 'Or move on']);
-    await decision(host).first().click();
+    await expect(decision(host)).toHaveText(['Move on', 'Keep going for 10 more seconds']);
+    await decision(host).nth(1).click();
     // Together, so every page's check falls inside the line's five seconds.
     await Promise.all([host, ann, ben].map(async (page) => {
       await expect(outcomeLine(page)).toHaveText('Keeping going for 10 more seconds', { timeout: NETWORK_WAIT });
@@ -81,13 +86,13 @@ test('everyone votes when time is up, the facilitator decides, and everyone sees
     await expect(timeUpSheet(host).getByRole('group', { name: 'More time' }).getByRole('button', { name: '10 s', exact: true }))
       .toHaveAttribute('aria-pressed', 'true');
 
-    // Start again gives the topic a fresh timebox, which reads as keeping going.
-    await timeUpSheet(host).getByRole('button', { name: 'Start again' }).click();
+    // New timebox gives the topic a fresh timebox, which reads as keeping going.
+    await timeUpSheet(host).getByRole('button', { name: 'New timebox' }).click();
     const restart = host.getByRole('dialog', { name: 'Start a timer for #1' });
     // Cancel goes back to the vote it interrupted.
     await restart.getByRole('button', { name: 'Cancel' }).click();
     await expect(timeUpSheet(host)).toBeVisible();
-    await timeUpSheet(host).getByRole('button', { name: 'Start again' }).click();
+    await timeUpSheet(host).getByRole('button', { name: 'New timebox' }).click();
     await restart.getByRole('group', { name: 'Timebox' }).getByRole('button', { name: '20 s', exact: true }).click();
     await restart.getByRole('button', { name: 'Start 20 s' }).click();
     await expect(outcomeLine(ann)).toHaveText('Keeping going for 20 more seconds', { timeout: NETWORK_WAIT });
@@ -95,7 +100,15 @@ test('everyone votes when time is up, the facilitator decides, and everyone sees
     await expect(timeUpSheet(host)).toBeVisible({ timeout: TIME_UP_WAIT });
     await expect(decision(host).first()).toHaveText('Move on');
     await decision(host).first().click();
-    await Promise.all([host, ann, ben].map((page) => expect(outcomeLine(page)).toHaveText('Moved on to the next topic', { timeout: NETWORK_WAIT })));
+    await Promise.all([host, ann, ben].map((page) => expect(outcomeLine(page)).toHaveText('Moved on · Next topic coming up', { timeout: NETWORK_WAIT })));
+
+    // Undo, for the facilitator only, puts the topic back at time's up with its vote open.
+    await expect(host.getByRole('button', { name: 'Undo' })).toBeVisible();
+    await expect(ann.getByRole('button', { name: 'Undo' })).toHaveCount(0);
+    await host.getByRole('button', { name: 'Undo' }).click();
+    await expect(host.getByRole('group', { name: 'Next step' }).getByRole('button', { name: 'Decide' })).toBeVisible({ timeout: NETWORK_WAIT });
+    await expect(outcomeLine(host)).toHaveCount(0);
+    await expect(topicCard(ann, 'Pairing rotation').getByRole('button', { name: 'Vote on keep going', exact: true })).toBeVisible({ timeout: NETWORK_WAIT });
   } finally {
     await Promise.all(contexts.map((c) => c.close()));
   }
@@ -105,7 +118,7 @@ test('a rehearsal board can give one topic a timebox in real minutes', async ({ 
   await hostMeeting(page, 'Hana', 'Real minutes', { rehearsal: true });
   await addTopic(page, 'Retro format');
   await page.getByRole('button', { name: 'Start discussion' }).click();
-  await topicCard(page, 'Retro format').getByRole('button', { name: 'Discuss', exact: true }).click();
+  await topicCard(page, 'Retro format').getByRole('button', { name: /^Discuss (?!#\d+$)/ }).click();
   const picker = page.getByRole('dialog', { name: 'Discuss #1' });
   await expect(picker.getByText('For this topic only. Otherwise a minute here lasts 10 seconds.')).toBeVisible();
   await picker.getByRole('switch', { name: 'Use real minutes' }).click();

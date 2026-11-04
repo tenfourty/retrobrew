@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { banner, addTopic, canary, collectPageErrors, forceNoDirectPath, freezePage, hostMeeting, installNetworkHooks, joinMeeting, resumePage, topicCard } from './helpers';
+import { banner, addTopic, canary, collectPageErrors, discussTopic, forceNoDirectPath, freezePage, hostMeeting, installNetworkHooks, joinMeeting, resumePage, timeUpSheet, topicCard } from './helpers';
 
 const HOST_OFFLINE = "The facilitator's device is offline.";
 
@@ -260,12 +260,12 @@ test('while the facilitator’s phone is locked the board is read-only, and ever
     const existing = canary('Before locking ');
     await addTopic(host, existing);
     await expect(topicCard(participant, existing)).toBeVisible();
-    await expect(topicCard(participant, existing).getByRole('button', { name: 'Vote', exact: true })).toBeEnabled();
+    await expect(topicCard(participant, existing).getByRole('button', { name: /^Vote for / })).toBeEnabled();
     await freezePage(host);
     // After 20 s without the host, the meeting pauses: the board stays, read-only.
     await expect(banner(participant, HOST_OFFLINE)).toBeVisible({ timeout: 30_000 });
     await expect(participant.getByRole('textbox', { name: 'New topic' })).toHaveCount(0);
-    await expect(topicCard(participant, existing).getByRole('button', { name: 'Vote', exact: true })).toBeDisabled();
+    await expect(topicCard(participant, existing).getByRole('button', { name: /^Vote for / })).toBeDisabled();
     const unlockedAt = Date.now();
     await resumePage(host);
     await expect(banner(participant, HOST_OFFLINE)).toHaveCount(0, { timeout: 5000 });
@@ -274,6 +274,40 @@ test('while the facilitator’s phone is locked the board is read-only, and ever
     await addTopic(participant, topic);
     await expect(topicCard(host, topic)).toBeVisible();
     expect(errors).toEqual([]);
+  } finally {
+    await hostContext.close();
+    await participantContext.close();
+  }
+});
+
+test('while the facilitator is away a guest counts only themselves, and a timer that runs out says time up will show when they are back', async ({ browser }) => {
+  test.slow();
+  const hostContext = await browser.newContext();
+  const participantContext = await browser.newContext();
+  await installNetworkHooks(hostContext);
+  await forceNoDirectPath(hostContext);
+  const host = await hostContext.newPage();
+  const participant = await participantContext.newPage();
+
+  try {
+    const url = await hostMeeting(host, 'Host', 'Away check', { rehearsal: true });
+    await joinMeeting(participant, url, 'Waiting');
+    await addTopic(host, 'Pairing rotation');
+    await host.getByRole('button', { name: 'Start discussion' }).click();
+    await expect(participant.getByRole('button', { name: '2 here' })).toBeVisible({ timeout: 30_000 });
+    await discussTopic(host, 'Pairing rotation', '10 s');
+    await expect(participant.getByRole('timer')).toBeVisible({ timeout: 30_000 });
+    await freezePage(host);
+    // The facilitator is away: the head count can't know the others are still here, and the timer runs out with no vote.
+    await expect(banner(participant, HOST_OFFLINE)).toBeVisible({ timeout: 30_000 });
+    await expect(participant.getByRole('button', { name: '1 here' })).toBeVisible();
+    const note = participant.getByText("Time's up will show when the facilitator is back.", { exact: true });
+    await expect(note).toBeVisible({ timeout: 30_000 });
+    await expect(timeUpSheet(participant)).toHaveCount(0);
+    await resumePage(host);
+    // Back again: the vote opens on everyone's screen and the note goes.
+    await expect(timeUpSheet(participant)).toBeVisible({ timeout: 30_000 });
+    await expect(note).toHaveCount(0);
   } finally {
     await hostContext.close();
     await participantContext.close();

@@ -97,6 +97,13 @@ export function outcomeLine(page: Page): Locator {
   return page.locator('.rb-outcome');
 }
 
+// Presses "Stop timer" (in the bar, the More sheet or the side panel) and confirms it in "Stop the timer?".
+export async function stopTimer(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Stop timer' }).click();
+  await page.getByRole('dialog', { name: 'Stop the timer?' }).getByRole('button', { name: 'Stop timer' }).click();
+  await expect(page.getByRole('dialog', { name: 'Stop the timer?' })).toHaveCount(0);
+}
+
 // The sheet everyone sees when a timer runs out.
 export function timeUpSheet(page: Page): Locator {
   return page.getByRole('dialog', { name: "Time's up. Keep going?" });
@@ -105,7 +112,7 @@ export function timeUpSheet(page: Page): Locator {
 // The facilitator picks a topic to discuss from its card and starts it with one of the picker's timeboxes, by label
 // ("10 s" on a rehearsal board, where a timebox minute lasts 10 seconds).
 export async function discussTopic(page: Page, text: string, timebox: string): Promise<void> {
-  await topicCard(page, text).getByRole('button', { name: 'Discuss', exact: true }).click();
+  await topicCard(page, text).getByRole('button', { name: /^Discuss (?!#\d+$)/ }).click();
   const picker = page.getByRole('dialog', { name: /^Discuss #\d+$/ });
   await picker.getByRole('group', { name: 'Timebox' }).getByRole('button', { name: timebox, exact: true }).click();
   await picker.getByRole('button', { name: `Start ${timebox}` }).click();
@@ -588,7 +595,9 @@ export async function expectNoA11yViolations(page: Page): Promise<void> {
 // frames first: a change made just now starts its transitions at the next style update.
 export async function settleTransitions(page: Page): Promise<void> {
   await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
-  await page.waitForFunction(() => document.getAnimations().every((a) => !(a instanceof CSSTransition) || a.playState !== 'running'));
+  // A sheet fades in over 180 ms (a CSS animation): measured halfway, red text on it reads lighter than it is. Looping animations are left alone.
+  await page.waitForFunction(() => document.getAnimations().every((a) =>
+    !(a instanceof CSSTransition || a instanceof CSSAnimation) || a.playState !== 'running' || a.effect?.getComputedTiming().iterations === Infinity));
 }
 
 export const THEMES = ['business-light', 'business-dark', 'party-light', 'party-dark'] as const;

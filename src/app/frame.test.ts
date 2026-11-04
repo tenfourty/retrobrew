@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { KeyValueStore } from './handoff';
-import { guideLine } from './guide';
+import { guideLine, showVotesHints } from './guide';
 import { connectionDetails, peopleRows } from './people';
 import { lastExtension, lastTimebox, rememberExtension, rememberTimebox, setSoundOn, soundOn } from './prefs';
 
@@ -97,5 +97,16 @@ describe('per-device preferences', () => {
     expect(lastTimebox(null)).toBe(5);
     expect(soundOn(true, null)).toBe(true);
     rememberTimebox(3, null);
+  });
+});
+
+describe('showVotesHints', () => {
+  it('has no hint while votes are visible in the topics phase, and the caveat only while they are hidden', () => {
+    expect(showVotesHints('topics', true)).toEqual([]);
+    expect(showVotesHints('topics', false)).toEqual(["Hidden on screen. It doesn't make votes secret from other attendees."]);
+  });
+  it('says only that votes always show once the discussion starts, never beside the caveat', () => {
+    expect(showVotesHints('discussion', true)).toEqual(['Votes always show once the discussion starts']);
+    expect(showVotesHints('discussion', false)).toEqual(['Votes always show once the discussion starts']);
   });
 });

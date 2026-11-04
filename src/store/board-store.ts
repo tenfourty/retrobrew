@@ -29,6 +29,20 @@ export interface DeviceRecord {
   name?: string;
 }
 
+// A meeting this device joined as a guest (docs/product/mvp-screens.md, Your meetings). It holds no board: only the
+// meeting's name, the share link the person was given (the same link they already hold, so it exposes nothing beyond
+// that board) and the name they joined under. It is never exported, and no wire message carries it.
+export interface JoinedRecord {
+  boardId: string;
+  boardName: string;
+  link: string;
+  name: string;
+  joinedAt: number;
+}
+
+// The device keeps this many joined meetings; the oldest go first.
+export const JOINED_LIMIT = 20;
+
 export interface BoardStore {
   get(id: string): Promise<BoardRecord | undefined>;
   put(record: BoardRecord): Promise<void>;
@@ -37,6 +51,9 @@ export interface BoardStore {
   notePersistence(id: string, note: 'granted' | 'refused'): Promise<BoardRecord | undefined>;
   list(): Promise<BoardRecord[]>;
   remove(id: string): Promise<void>;
+  listJoined(): Promise<JoinedRecord[]>;
+  putJoined(record: JoinedRecord): Promise<void>;
+  removeJoined(id: string): Promise<void>;
   getDevice(): Promise<DeviceRecord | undefined>;
   putDevice(record: DeviceRecord): Promise<void>;
   close(): void;
@@ -63,20 +80,30 @@ function migrateRecord(record: BoardRecord): BoardRecord {
   return { ...rest, epoch: safeEpoch(record.epoch), state: migrateBoard(record.state), ...(parsed ? { tabs: parsed } : {}) };
 }
 
+function isJoinedRecord(x: unknown): x is JoinedRecord {
+  if (typeof x !== 'object' || x === null) return false;
+  const r = x as Record<string, unknown>;
+  return typeof r.boardId === 'string' && typeof r.boardName === 'string' && typeof r.link === 'string'
+    && typeof r.name === 'string' && typeof r.joinedAt === 'number';
+}
+
 export async function openStore(name = 'retrobrew'): Promise<BoardStore> {
   // Version 2 keys the boards by boardId. A version 1 database (made before protocol 3) keyed them by another field, and
   // a store's key path can't change, so its boards are dropped: they can't be read, and the store is recreated empty.
-  const db = await openDB(name, 2, {
+  const db = await openDB(name, 3, {
     upgrade(database, oldVersion) {
       if (oldVersion === 0) {
         database.createObjectStore('boards', { keyPath: 'boardId' });
         database.createObjectStore('device', { keyPath: 'id' });
+        database.createObjectStore('joined', { keyPath: 'boardId' });
         return;
       }
       if (oldVersion < 2) {
         database.deleteObjectStore('boards');
         database.createObjectStore('boards', { keyPath: 'boardId' });
       }
+      // Version 3 adds the meetings this device joined as a guest.
+      if (oldVersion < 3) database.createObjectStore('joined', { keyPath: 'boardId' });
     },
   });
   return {
@@ -94,6 +121,15 @@ export async function openStore(name = 'retrobrew'): Promise<BoardStore> {
     },
     list: async () => ((await db.getAll('boards')) as BoardRecord[]).map(migrateRecord),
     remove: (id) => db.delete('boards', id),
+    listJoined: async () => ((await db.getAll('joined')) as JoinedRecord[]).filter(isJoinedRecord),
+    putJoined: async (record) => {
+      const tx = db.transaction('joined', 'readwrite');
+      await tx.store.put(record);
+      const all = ((await tx.store.getAll()) as JoinedRecord[]).sort((a, b) => b.joinedAt - a.joinedAt);
+      for (const old of all.slice(JOINED_LIMIT)) await tx.store.delete(old.boardId);
+      await tx.done;
+    },
+    removeJoined: (id) => db.delete('joined', id),
     getDevice: () => db.get('device', 'device') as Promise<DeviceRecord | undefined>,
     putDevice: async (record) => { await db.put('device', record); },
     close: () => db.close(),
@@ -152,6 +188,10 @@ function validContinueVote(x: unknown): boolean {
   return isRecord(totals) && isInt(totals.extend) && isInt(totals.none) && isInt(totals.end);
 }
 
+function validMoveOnUndo(x: unknown): boolean {
+  return x === null || (isRecord(x) && isInt(x.topicId, 1) && x.timer !== null && validTimer(x.timer) && validContinueVote(x.continueVote) && x.continueVote !== null);
+}
+
 // Every field the engine relies on. MVP fields may be missing from older files (migrateBoard fills them in on load),
 // but must be well typed when present. An unknown timer sound is refused, like an unknown phase.
 export function validateBoardState(x: unknown): x is BoardState {
@@ -170,6 +210,7 @@ export function validateBoardState(x: unknown): x is BoardState {
     && optional(x.phase, (v) => PHASES.includes(v as string))
     && optional(x.voteRound, (v) => isInt(v))
     && optional(x.continueVote, validContinueVote)
+    && optional(x.moveOnUndo, validMoveOnUndo)
     && optional(x.timerSound, (v) => (SOUND_IDS as readonly unknown[]).includes(v))
     && optional(x.endedAt, (v) => v === null || isNum(v))
     && optional(x.discussedOrder, (v) => Array.isArray(v) && v.length <= MAX_TOPICS * CEILING && v.every((id) => isInt(id, 1)))

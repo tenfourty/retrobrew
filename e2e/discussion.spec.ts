@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addTopic, discussTopic, expectNoA11yViolations, hostMeeting, joinMeeting, NETWORK_WAIT, outcomeLine, timeUpSheet, topicCard } from './helpers';
+import { addTopic, discussTopic, expectNoA11yViolations, hostMeeting, joinMeeting, NETWORK_WAIT, outcomeLine, stopTimer, timeUpSheet, topicCard } from './helpers';
 
 const LONG = 'Should we adopt trunk-based development this quarter?';
 const column = (page: Page, name: string) => page.getByRole('region', { name });
@@ -14,9 +14,9 @@ test('wide screens show To discuss, Discussing and Discussed side by side', asyn
     await joinMeeting(ann, url, 'Ann');
     for (const text of ['Release notes', 'Hiring plan', 'Pairing rotation']) await addTopic(ann, text);
     await expect(column(host, 'Ideas').locator('article')).toHaveCount(3, { timeout: NETWORK_WAIT });
-    await topicCard(ann, 'Hiring plan').getByRole('button', { name: 'Vote', exact: true }).click();
-    await topicCard(ann, 'Hiring plan').getByRole('button', { name: 'Vote', exact: true }).click();
-    await topicCard(ann, 'Release notes').getByRole('button', { name: 'Vote', exact: true }).click();
+    await topicCard(ann, 'Hiring plan').getByRole('button', { name: /^Vote for / }).click();
+    await topicCard(ann, 'Hiring plan').getByRole('button', { name: /^Vote for / }).click();
+    await topicCard(ann, 'Release notes').getByRole('button', { name: /^Vote for / }).click();
     await expect(ann.getByText('No votes left', { exact: true })).toBeVisible({ timeout: NETWORK_WAIT });
     await host.getByRole('button', { name: 'Start discussion' }).click();
 
@@ -26,8 +26,8 @@ test('wide screens show To discuss, Discussing and Discussed side by side', asyn
     await expect(column(ann, 'Discussing').getByText('Nothing is being discussed yet. The facilitator picks the next topic.')).toBeVisible();
     await expect(column(host, 'Discussing').getByText('Pick a topic from To discuss.')).toBeVisible();
     await expect(column(ann, 'Discussed').getByText('Finished topics appear here')).toBeVisible();
-    await expect(toDiscuss.getByRole('button', { name: 'Discuss', exact: true })).toHaveCount(0);
-    await expect(column(host, 'To discuss').getByRole('button', { name: 'Discuss', exact: true })).toHaveCount(3);
+    await expect(toDiscuss.getByRole('button', { name: /^Discuss (?!#\d+$)/ })).toHaveCount(0);
+    await expect(column(host, 'To discuss').getByRole('button', { name: /^Discuss (?!#\d+$)/ })).toHaveCount(3);
 
     // New topics land at the end of To discuss.
     await expect(ann.getByRole('button', { name: 'Add another topic' })).toBeVisible();
@@ -39,9 +39,17 @@ test('wide screens show To discuss, Discussing and Discussed side by side', asyn
     const live = column(ann, 'Discussing').locator('article');
     await expect(live.locator('.rb-card-text')).toHaveText('Release notes', { timeout: NETWORK_WAIT });
     await expect(live.getByRole('timer')).toContainText('of 10 s');
+    // Only one topic is discussed at a time: the other Discuss buttons wait, with the reason, instead of failing after the picker.
+    const waiting = column(host, 'To discuss').getByRole('button', { name: /^Discuss (?!#\d+$)/ });
+    await expect(waiting).toHaveCount(3);
+    for (const button of await waiting.all()) {
+      await expect(button).toBeDisabled();
+      await expect(button).toHaveAccessibleDescription('Finish or return the topic being discussed first');
+      await expect(button).toHaveAttribute('title', 'Finish or return the topic being discussed first');
+    }
     await expect(live.getByRole('button')).toHaveCount(0);
     await expectNoA11yViolations(ann);
-    await host.getByRole('button', { name: 'Stop timer' }).click();
+    await stopTimer(host);
     await expect(live.getByText('No timer')).toBeVisible({ timeout: NETWORK_WAIT });
     await host.getByRole('button', { name: 'Start timer' }).click();
     const picker = host.getByRole('dialog', { name: 'Start a timer for #1' });
@@ -50,7 +58,7 @@ test('wide screens show To discuss, Discussing and Discussed side by side', asyn
     await expect(timeUpSheet(host)).toBeVisible({ timeout: 30_000 });
     await timeUpSheet(host).locator('.mtg-decision').getByRole('button').first().click();
     // The outcome line sits at the top of the Discussing column.
-    await expect(column(ann, 'Discussing').locator('xpath=..').locator('.rb-outcome')).toHaveText('Moved on to the next topic', { timeout: NETWORK_WAIT });
+    await expect(column(ann, 'Discussing').locator('xpath=..').locator('.rb-outcome')).toHaveText('Moved on · Next topic coming up', { timeout: NETWORK_WAIT });
     await expect(column(ann, 'Discussed').locator('.rb-card-text')).toHaveText(['Release notes']);
   } finally {
     await Promise.all(contexts.map((c) => c.close()));
@@ -108,12 +116,12 @@ test('phones show a status strip and a tab per column, without switching tabs wh
     await expect(timeUpSheet(ann)).toBeVisible({ timeout: 30_000 });
     await ann.keyboard.press('Escape');
     await expect(busy).toContainText("Time's up");
-    await ann.locator('.rb-strip').getByRole('button', { name: 'Vote' }).click();
+    await ann.locator('.rb-strip').getByRole('button', { name: 'Vote on keep going' }).click();
     await expect(timeUpSheet(ann)).toBeVisible();
     await timeUpSheet(host).locator('.mtg-decision').getByRole('button').first().click();
     // The outcome line sits just under the strip.
     const line = outcomeLine(ann);
-    await expect(line).toHaveText('Moved on to the next topic', { timeout: NETWORK_WAIT });
+    await expect(line).toHaveText('Moved on · Next topic coming up', { timeout: NETWORK_WAIT });
     // The vote ended under Ann's open sheet, taking the chip that opened it: focus lands on the strip, not the page body.
     await expect(timeUpSheet(ann)).toHaveCount(0);
     await expect(busy).toBeFocused();
@@ -155,7 +163,7 @@ test('at 768 px the facilitator\'s columns stay readable, and deleting a topic k
     const host = await context.newPage();
     await hostMeeting(host, 'Hana', 'Tablet check', { rehearsal: true });
     for (const text of ['Alpha topic', 'Beta topic', 'Gamma topic']) await addTopic(host, text);
-    await topicCard(host, 'Alpha topic').getByRole('button', { name: 'Vote', exact: true }).click();
+    await topicCard(host, 'Alpha topic').getByRole('button', { name: /^Vote for / }).click();
     await host.getByRole('button', { name: 'Start discussion' }).click();
     const toDiscuss = column(host, 'To discuss');
     // Unvoted topics keep the board's order, newest first (src/engine/order.ts).
@@ -166,7 +174,7 @@ test('at 768 px the facilitator\'s columns stay readable, and deleting a topic k
     expect(await host.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
     const remove = async (text: string) => {
-      await topicCard(host, text).getByRole('button', { name: 'Delete', exact: true }).click();
+      await topicCard(host, text).getByRole('button', { name: /^Delete / }).click();
       await host.getByRole('dialog').getByRole('button', { name: 'Delete topic' }).click();
       await expect(topicCard(host, text)).toHaveCount(0, { timeout: NETWORK_WAIT });
     };

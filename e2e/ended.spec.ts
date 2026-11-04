@@ -16,9 +16,9 @@ test('everyone sees the final board, can copy it as text, and keeps it after the
     await joinMeeting(ann, url, 'Ann');
     for (const text of ['Release notes', 'Hiring plan', 'Pairing rotation', 'Retro format']) await addTopic(host, text);
     await expect(topicCard(ann, 'Retro format')).toBeVisible({ timeout: NETWORK_WAIT });
-    await topicCard(ann, 'Hiring plan').getByRole('button', { name: 'Vote', exact: true }).click();
-    await topicCard(ann, 'Hiring plan').getByRole('button', { name: 'Vote', exact: true }).click();
-    await topicCard(ann, 'Release notes').getByRole('button', { name: 'Vote', exact: true }).click();
+    await topicCard(ann, 'Hiring plan').getByRole('button', { name: /^Vote for / }).click();
+    await topicCard(ann, 'Hiring plan').getByRole('button', { name: /^Vote for / }).click();
+    await topicCard(ann, 'Release notes').getByRole('button', { name: /^Vote for / }).click();
     await expect(ann.getByText('No votes left', { exact: true })).toBeVisible({ timeout: NETWORK_WAIT });
 
     await host.getByRole('button', { name: 'Start discussion' }).click();
@@ -133,8 +133,8 @@ test('Copy as text counts every vote, even while Show votes hides them, and part
     await addTopic(host, 'Release notes');
     const panel = facilitatorPanel(host);
     await panel.getByRole('switch', { name: 'Show votes' }).click();
-    await topicCard(ann, 'Release notes').getByRole('button', { name: 'Vote', exact: true }).click({ timeout: NETWORK_WAIT });
-    await topicCard(ann, 'Release notes').getByRole('button', { name: 'Vote', exact: true }).click();
+    await topicCard(ann, 'Release notes').getByRole('button', { name: /^Vote for / }).click({ timeout: NETWORK_WAIT });
+    await topicCard(ann, 'Release notes').getByRole('button', { name: /^Vote for / }).click();
     await expect(ann.getByText('1 vote left')).toBeVisible({ timeout: NETWORK_WAIT });
     // On screen the count is hidden from everyone, the facilitator too.
     await expect(topicCard(ann, 'Release notes').getByRole('img', { name: 'Votes hidden, 2 yours' })).toBeVisible();
@@ -151,6 +151,13 @@ test('Copy as text counts every vote, even while Show votes hides them, and part
 
     // From the ended view, in the action bar.
     await expect(summary(host)).toBeVisible({ timeout: NETWORK_WAIT });
+    // What no longer applies is gone: the Facilitator controls (the engine refuses them) and the keep-this-page-open line.
+    await expect(panel.getByRole('group', { name: 'Votes each' })).toHaveCount(0);
+    await expect(panel.getByRole('button', { name: 'Reset all votes' })).toHaveCount(0);
+    await expect(panel.getByRole('switch', { name: 'Show votes' })).toHaveCount(0);
+    await expect(panel.getByText('Timer sound')).toHaveCount(0);
+    await expect(panel.getByRole('button', { name: 'Reopen meeting' })).toBeVisible();
+    await expect(host.getByText('This meeting runs on this device. Keep this page open.')).toHaveCount(0);
     await panel.getByRole('button', { name: 'Copy as text' }).click();
     await expect(panel.getByRole('button', { name: 'Copied' })).toBeVisible();
     expect(await host.evaluate(() => navigator.clipboard.readText())).toMatch(/\nNot discussed\n- Release notes \(2 votes\)\n$/);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { KeyValueStore } from './handoff';
 import { MESSAGES } from '../engine/messages';
-import { forgetJoined, JOINED_LIMIT, joinedName, joinRefusalText, rememberJoined } from './joined';
+import { forgetJoined, JOINED_LIMIT, joinedName, joinRefusalText, joiningTitle, rememberJoined } from './joined';
 
 // A meeting is its board ID and its facilitator's key: the same board ID under another key is another meeting.
 const m = (boardId: string, hostPub = 'host-key') => ({ boardId, hostPub });
@@ -69,5 +69,15 @@ describe('joinRefusalText', () => {
     expect(joinRefusalText('somethingNew')).toBe(MESSAGES.badCommand);
     expect(joinRefusalText('toString')).toBe(MESSAGES.badCommand);
     expect(joinRefusalText(null)).toBeNull();
+  });
+});
+
+describe('joiningTitle', () => {
+  it('names the meeting once the facilitator has answered', () => {
+    expect(joiningTitle('Team Lean Coffee')).toBe('Joining Team Lean Coffee');
+  });
+  it('says nothing before an answer, or for a blank name', () => {
+    expect(joiningTitle(undefined)).toBeNull();
+    expect(joiningTitle('  ')).toBeNull();
   });
 });

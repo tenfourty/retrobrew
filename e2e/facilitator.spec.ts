@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addTopic, hostMeeting, joinMeeting, NETWORK_WAIT, timeUpSheet, topicCard } from './helpers';
+import { addTopic, hostMeeting, joinMeeting, NETWORK_WAIT, stopTimer, timeUpSheet, topicCard } from './helpers';
 
 const TIME_UP_WAIT = 30_000;
 
@@ -25,57 +25,88 @@ test('the side panel follows the facilitator through the whole meeting', async (
     const bar = nextStep(host);
     await expect(bar.getByRole('button')).toHaveText(['Invite people']);
     await expect(panel.getByRole('button', { name: 'Facilitator' })).toHaveCount(0);
+    // Each button shows once: Invite people is the bar's, not repeated in the controls below it.
+    await expect(panel.getByRole('button', { name: 'Invite people' })).toHaveCount(1);
     const votesEach = panel.getByRole('group', { name: 'Votes each' });
     await expect(votesEach.getByRole('button')).toHaveText(['3', '5', '8', '10']);
     await expect(votesEach).toHaveAccessibleDescription('The allowance can go up but not down');
 
     await addTopic(guest, 'Pairing rotation');
     await expect(bar.getByRole('button')).toHaveText(['Start discussion', 'Invite people'], { timeout: NETWORK_WAIT });
+    // Raising the allowance asks first, with Cancel focused; cancelling changes nothing.
     await votesEach.getByRole('button', { name: '5' }).click();
+    const raise = host.getByRole('dialog', { name: 'Give everyone 5 votes?' });
+    await expect(raise.getByText("Everyone gets 5 votes each. The allowance can't be lowered again once votes are cast.")).toBeVisible();
+    await expect(raise.getByRole('button')).toHaveText(['Give 5 votes', 'Cancel']);
+    await expect(raise.getByRole('button', { name: 'Cancel' })).toBeFocused();
+    await raise.getByRole('button', { name: 'Cancel' }).click();
+    await expect(raise).toHaveCount(0);
+    await expect(votesEach.getByRole('button', { name: '3' })).toHaveAttribute('aria-pressed', 'true');
+    await votesEach.getByRole('button', { name: '5' }).click();
+    await raise.getByRole('button', { name: 'Give 5 votes' }).click();
     await expect(guest.getByText('5 votes left')).toBeVisible({ timeout: NETWORK_WAIT });
     await expect(votesEach.getByRole('button', { name: '3' })).toBeDisabled();
     await expect(votesEach.getByRole('button', { name: '5' })).toHaveAttribute('aria-pressed', 'true');
 
-    await topicCard(guest, 'Pairing rotation').getByRole('button', { name: 'Vote', exact: true }).click();
+    await topicCard(guest, 'Pairing rotation').getByRole('button', { name: /^Vote for / }).click();
     await expect(guest.getByText('4 votes left')).toBeVisible({ timeout: NETWORK_WAIT });
     await panel.getByRole('button', { name: 'Reset all votes' }).click();
     const reset = host.getByRole('dialog', { name: 'Reset all votes?' });
     await expect(reset.getByText("This removes every vote on topics that haven't been discussed, and gives them back. Votes on discussed topics stay spent.")).toBeVisible();
     await expect(reset.getByRole('button')).toHaveText(['Reset votes', 'Cancel']);
+    await expect(reset.getByRole('button', { name: 'Cancel' })).toBeFocused();
     await reset.getByRole('button', { name: 'Reset votes' }).click();
     await expect(guest.getByText('5 votes left')).toBeVisible({ timeout: NETWORK_WAIT });
 
     const showVotes = panel.getByRole('switch', { name: 'Show votes' });
+    // The caveat describes the hidden state, so it shows only while votes are hidden.
+    await expect(panel.getByText('Hidden on screen.')).toHaveCount(0);
+    await showVotes.click();
     await expect(showVotes).toHaveAccessibleDescription("Hidden on screen. It doesn't make votes secret from other attendees.");
+    await showVotes.click();
+    await expect(panel.getByText('Hidden on screen.')).toHaveCount(0);
     await bar.getByRole('button', { name: 'Start discussion' }).click();
     await expect(bar.getByRole('button')).toHaveText(['Discuss #1']);
     // The primary keeps focus when the row changes under it.
     await expect(bar.getByRole('button', { name: 'Discuss #1' })).toBeFocused();
     await expect(showVotes).toBeDisabled();
     await expect(panel.getByText('Votes always show once the discussion starts')).toBeVisible();
+    await expect(panel.getByText('Hidden on screen.')).toHaveCount(0);
 
     await bar.getByRole('button', { name: 'Discuss #1' }).click();
     await pickTimebox(host, 'Discuss #1', '10 s');
     await expect(bar.getByRole('button')).toHaveText(['Finish topic', 'Stop timer', 'Return topic']);
     await expect(panel.getByRole('button', { name: 'Back to topics' })).toBeDisabled();
     await expect(panel.getByRole('button', { name: 'Back to topics' })).toHaveAccessibleDescription('Finish or return the topic being discussed first');
+    // Stop timer asks first, with Cancel focused; Cancel leaves the timer running.
     await bar.getByRole('button', { name: 'Stop timer' }).click();
+    const confirmStop = host.getByRole('dialog', { name: 'Stop the timer?' });
+    await expect(confirmStop.getByRole('button', { name: 'Cancel' })).toBeFocused();
+    await confirmStop.getByRole('button', { name: 'Cancel' }).click();
+    await expect(confirmStop).toHaveCount(0);
+    await expect(bar.getByRole('button')).toHaveText(['Finish topic', 'Stop timer', 'Return topic']);
+    await stopTimer(host);
     await expect(bar.getByRole('button')).toHaveText(['Finish topic', 'Start timer', 'Return topic']);
     await bar.getByRole('button', { name: 'Start timer' }).click();
     await pickTimebox(host, 'Start a timer for #1', '10 s');
 
     await expect(timeUpSheet(host)).toBeVisible({ timeout: TIME_UP_WAIT });
     await host.keyboard.press('Escape');
-    await expect(bar.getByRole('button')).toHaveText(['Decide', 'Stop timer']);
+    // Once time is up there is no timer left to stop.
+    await expect(bar.getByRole('button')).toHaveText(['Decide']);
     await bar.getByRole('button', { name: 'Decide' }).click();
     await expect(timeUpSheet(host).locator('.mtg-decision-primary')).toBeFocused();
-    await host.keyboard.press('Escape');
-    // Stop timer while the vote is open keeps the topic going, untimed.
-    await bar.getByRole('button', { name: 'Stop timer' }).click();
+    // Keep going starts a new timer, which Stop timer can then end, leaving the topic untimed.
+    await timeUpSheet(host).getByRole('button', { name: /^Keep going for / }).click();
+    await expect(bar.getByRole('button')).toHaveText(['Finish topic', 'Stop timer', 'Return topic']);
+    await stopTimer(host);
     await expect(timeUpSheet(guest)).toHaveCount(0, { timeout: NETWORK_WAIT });
     await expect(bar.getByRole('button')).toHaveText(['Finish topic', 'Start timer', 'Return topic']);
     await bar.getByRole('button', { name: 'Return topic' }).click();
     await expect(bar.getByRole('button')).toHaveText(['Discuss #1']);
+    // Focus follows the next step, not the page; and the live region stops saying "Now discussing" for a topic that left.
+    await expect(bar.getByRole('button', { name: 'Discuss #1' })).toBeFocused();
+    await expect(host.locator('[data-live-region]')).toHaveText(/^#1 returned to To discuss$/);
 
     await bar.getByRole('button', { name: 'Discuss #1' }).click();
     await pickTimebox(host, 'Discuss #1', '50 s');
@@ -92,8 +123,8 @@ test('the side panel follows the facilitator through the whole meeting', async (
       .toMatch(/^Bar check\n\d{1,2} [A-Z][a-z]+ \d{4} · Rehearsal\n\nDiscussed\n1\. Pairing rotation \(0 votes\)\n$/);
     await end.getByRole('button', { name: 'End meeting' }).click();
     await expect(bar.getByRole('button')).toHaveText(['Copy as text', 'Reopen meeting', 'Back up meeting file']);
-    // The controls stay once the meeting has ended, without End meeting.
-    await expect(panel.getByRole('heading', { name: 'Facilitator' })).toBeVisible();
+    // None of the controls applies once the meeting has ended.
+    await expect(panel.getByRole('group', { name: 'Votes each' })).toHaveCount(0);
     await expect(panel.getByRole('button', { name: 'End meeting' })).toHaveCount(0);
 
     await bar.getByRole('button', { name: 'Back up meeting file' }).click();
@@ -131,6 +162,7 @@ test('phones fold extra actions into More, with the Facilitator controls below t
     const more = host.getByRole('dialog', { name: 'More' });
     await expect(more.getByRole('listitem')).toHaveText(['Invite people']);
     await expect(more.getByRole('group', { name: 'Votes each' })).toBeVisible();
+    await expect(more.getByRole('button', { name: 'Invite people' })).toHaveCount(1);
     await more.getByRole('listitem').getByRole('button', { name: 'Invite people' }).click();
     await expect(host.getByRole('dialog', { name: 'Invite people' })).toBeVisible();
     await expect(more).toHaveCount(0);

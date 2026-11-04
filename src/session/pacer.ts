@@ -54,11 +54,24 @@ export class Pacer {
     }, wait);
   }
 
-  // A full refresh now (after a resume, for example), and the 5 s cycle restarts from it.
+  // A full refresh now, and the 5 s cycle restarts from it. It keeps the relay gap; a resume uses resume().
   refresh(): void {
     if (!this.running) return;
     this.o.sendDirect(true);
     this.wantRelay('full');
+  }
+
+  // A full refresh for a page back from a lock, which cannot wait for the relay gap: a bundle that went out in the same
+  // instant (the overdue refresh timer of a frozen page runs just before its visibility event) went to a socket that
+  // was dead, and is lost (or dropped on resume if the transport held it), so the gap would only delay the first bundle that can arrive.
+  // The transport's own send budget still guards the relay.
+  resume(): void {
+    if (!this.running) return;
+    this.lastRelayAt = Number.NEGATIVE_INFINITY;
+    // A bundle already waiting for its slot would also hold the new one back.
+    if (this.relayTimer !== null) this.o.scheduler.clearTimeout(this.relayTimer);
+    this.relayTimer = null;
+    this.refresh();
   }
 
   // A version reply may use a relay slot only if no bundle needs it. Returns whether it may send now;

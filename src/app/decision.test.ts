@@ -1,26 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { decisionButtons, moveOnNote, outcomeLine, turnoutLine } from './decision';
+import { decisionButtons, moveOnNote, outcomeLine, recommendation, turnoutLine } from './decision';
 
 describe('decisionButtons', () => {
-  const more = '3 more minutes';
-
-  it('puts Keep going first only when it has more votes than Move on', () => {
-    expect(decisionButtons({ extend: 3, none: 0, end: 2 }, more)).toEqual({
-      primary: { kind: 'extend', label: 'Keep going for 3 more minutes' },
-      secondary: { kind: 'end', label: 'Or move on' },
+  it('keeps Move on first and Keep going second, whatever the votes', () => {
+    expect(decisionButtons('3 more minutes')).toEqual({
+      primary: { kind: 'end', label: 'Move on' },
+      secondary: { kind: 'extend', label: 'Keep going for 3 more minutes' },
     });
   });
+});
 
-  it('puts Move on first on a tie, with no votes, or when Move on leads', () => {
-    const moveOnFirst = { primary: { kind: 'end', label: 'Move on' }, secondary: { kind: 'extend', label: 'Or keep going for 3 more minutes' } };
-    expect(decisionButtons({ extend: 2, none: 0, end: 2 }, more)).toEqual(moveOnFirst);
-    expect(decisionButtons({ extend: 0, none: 0, end: 0 }, more)).toEqual(moveOnFirst);
-    expect(decisionButtons({ extend: 1, none: 0, end: 4 }, more)).toEqual(moveOnFirst);
+describe('recommendation', () => {
+  it('says nothing until someone has chosen a side', () => {
+    expect(recommendation({ extend: 0, none: 0, end: 0 })).toBeNull();
+    expect(recommendation({ extend: 0, none: 4, end: 0 })).toBeNull();
   });
 
-  it('counts No preference for neither side', () => {
-    expect(decisionButtons({ extend: 1, none: 9, end: 1 }, more).primary.kind).toBe('end');
-    expect(decisionButtons({ extend: 2, none: 9, end: 1 }, more).primary.kind).toBe('extend');
+  it('names the side with more votes, counting No preference for neither', () => {
+    expect(recommendation({ extend: 3, none: 0, end: 2 })).toBe('Most votes say keep going');
+    expect(recommendation({ extend: 1, none: 9, end: 2 })).toBe('Most votes say move on');
+  });
+
+  it('calls a tie split', () => {
+    expect(recommendation({ extend: 2, none: 0, end: 2 })).toBe('The votes are split');
   });
 });
 
@@ -38,6 +40,7 @@ describe('the time-up sheet’s lines', () => {
     expect(outcomeLine({ kind: 'extended', minutes: 3 }, 60_000)).toBe('Keeping going for 3 more minutes');
     expect(outcomeLine({ kind: 'extended', minutes: 1 }, 60_000)).toBe('Keeping going for 1 more minute');
     expect(outcomeLine({ kind: 'extended', minutes: 3 }, 10_000)).toBe('Keeping going for 30 more seconds');
-    expect(outcomeLine({ kind: 'movedOn' }, 10_000)).toBe('Moved on to the next topic');
+    expect(outcomeLine({ kind: 'movedOn', topicId: 1 }, 10_000)).toBe('Moved on · Next topic coming up');
+    expect(outcomeLine({ kind: 'movedOn', topicId: 1 }, 10_000, true)).toBe('Moved on to the next topic');
   });
 });

@@ -20,6 +20,7 @@ export function backToTopics(state: BoardState): Result {
   if (state.topics.some((t) => t.column === 'discussing')) return refuse('finishFirst');
   const next = structuredClone(state);
   next.phase = 'topics';
+  next.moveOnUndo = null;
   moveAll(next, 'toDiscuss', 'ideas');
   return changed(next);
 }
@@ -34,6 +35,7 @@ export function endMeeting(state: BoardState, now: number): Result {
   }
   next.timer = null;
   next.continueVote = null;
+  next.moveOnUndo = null;
   next.endedAt = now;
   next.phase = 'ended';
   return changed(next);

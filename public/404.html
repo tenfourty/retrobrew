@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta name="referrer" content="no-referrer">
+    <meta name="robots" content="noindex">
+    <title>Page not found · Retrobrew</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/favicon.png" type="image/png" sizes="32x32">
+    <!-- nginx serves this page for any address that is not a page, at any depth, so it loads nothing relative and nothing
+         from the build (whose file names change). It takes its colours from the browser's own light or dark scheme. -->
+    <style>
+      body { margin: 0; font: 16px/1.5 system-ui, sans-serif; background: Canvas; color: CanvasText; }
+      main { box-sizing: border-box; max-width: 34rem; margin: 0 auto; padding: 4rem 1rem; display: grid; gap: 1rem; justify-items: start; }
+      h1 { margin: 0; font-size: 2rem; line-height: 1.15; }
+      p { margin: 0; }
+      a { color: LinkText; text-underline-offset: 3px; display: inline-flex; align-items: center; min-height: 44px; }
+      a:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p><a href="/">Retrobrew</a></p>
+      <h1>That page isn't here</h1>
+      <p>Check the address, or head back to somewhere that is.</p>
+      <p><a href="/app/#start">Start a meeting</a></p>
+      <p><a href="/app/">Your meetings</a></p>
+      <p><a href="/lean-coffee/">How to run a Lean Coffee</a></p>
+    </main>
+  </body>
+</html>

@@ -23,10 +23,11 @@ const FACILITATOR = act('facilitator', 'Facilitator');
 export function barRow(view: Pick<ViewState, 'phase' | 'topics' | 'timer' | 'vote' | 'discussedOrder'>): BarRow {
   const discussing = view.topics.find((t) => t.column === 'discussing');
   if (view.phase === 'ended') {
-    // The Facilitator controls stay on an ended meeting too: on phones they sit in "More", below its two buttons.
-    return { primary: act('copyText', 'Copy as text'), secondaries: [act('reopen', 'Reopen meeting'), act('backUp', 'Back up meeting file'), FACILITATOR] };
+    // None of the Facilitator controls applies to an ended meeting (the engine refuses them), so there is no Facilitator button.
+    return { primary: act('copyText', 'Copy as text'), secondaries: [act('reopen', 'Reopen meeting'), act('backUp', 'Back up meeting file')] };
   }
-  if (view.vote) return { primary: act('decide', 'Decide'), secondaries: [act('stopTimer', 'Stop timer'), FACILITATOR] };
+  // Once time is up the timer has nothing left to stop, so "Stop timer" is gone: the decision is Decide's.
+  if (view.vote) return { primary: act('decide', 'Decide'), secondaries: [FACILITATOR] };
   if (discussing && view.timer) {
     return { primary: act('finish', 'Finish topic'), secondaries: [act('stopTimer', 'Stop timer'), act('returnTopic', 'Return topic'), FACILITATOR] };
   }
@@ -63,4 +64,16 @@ export function wideBar(row: BarRow): { primary: BarAction; secondaries: BarActi
     secondaries: row.secondaries.filter((a) => a.id !== 'facilitator'),
     controls: row.secondaries.some((a) => a.id === 'facilitator'),
   };
+}
+
+// The buttons the Facilitator controls repeat from the action bar. Where the controls sit in the same place as the bar's
+// buttons (the wide side panel, the phone's More sheet), the controls leave those out, so each button shows once, a few
+// lines from the next. `wide` is the side panel (the bar's every button shows); `more` is the More sheet (the row's
+// secondaries list there). The Facilitator sheet opens on its own and leaves out nothing.
+export type ControlId = 'invite' | 'backToTopics' | 'returnTopic' | 'endMeeting';
+export function controlsLeftOut(row: BarRow, where: 'wide' | 'more' | 'facilitator'): ReadonlySet<ControlId> {
+  if (where === 'facilitator') return new Set();
+  const listed = where === 'wide' ? [row.primary, ...wideBar(row).secondaries] : phoneBar(row).more;
+  const ids = new Set(listed.map((a) => a.id));
+  return new Set((['invite', 'backToTopics', 'returnTopic', 'endMeeting'] as const).filter((id) => ids.has(id)));
 }

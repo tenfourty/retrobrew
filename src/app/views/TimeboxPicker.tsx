@@ -37,7 +37,7 @@ export function TimeboxPicker(props: {
     <Sheet open={props.open} title={props.restart ? `Start a timer for #${topic.topicId}` : `Discuss #${topic.topicId}`} onClose={props.onClose} noClose returnFocusTo={props.opener}
       initialFocus=".mtg-picker-start">
       <p className="mtg-sheet-topic">{topic.text}</p>
-      <Segmented label="Timebox" value={minutes} onChange={setMinutes}
+      <Segmented label="Timebox" columns={3} value={minutes} onChange={setMinutes}
         options={TIMEBOX_MINUTES.map((m) => ({ value: m, label: timeboxLabel(m, minuteMs) }))} />
       {props.rehearsal ? (
         <Switch label="Use real minutes" checked={real} onChange={setReal} hint="For this topic only. Otherwise a minute here lasts 10 seconds." />

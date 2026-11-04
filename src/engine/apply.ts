@@ -1,6 +1,6 @@
 import { isFacilitator } from './board';
 import {
-  discussTopic, extendTopic, finishTopic, restartTimer, returnTopic, setTimerSound, stopTimer, voteToContinue,
+  discussTopic, extendTopic, finishTopic, restartTimer, returnTopic, setTimerSound, stopTimer, undoMoveOn, voteToContinue,
 } from './discussion';
 import { join } from './people';
 import { backToTopics, endMeeting, reopenMeeting, startDiscussion } from './phases';
@@ -12,7 +12,7 @@ import { raiseAllowance, removeVote, clearVotes, setShowVotes, addVote } from '.
 // Commands whose sender needs an explicit owner or facilitator role.
 const FACILITATOR_ONLY: ReadonlySet<string> = new Set([
   'raiseAllowance', 'clearVotes', 'setShowVotes', 'startDiscussion', 'backToTopics', 'endMeeting', 'reopenMeeting',
-  'discussTopic', 'stopTimer', 'restartTimer', 'returnTopic', 'extendTopic', 'finishTopic', 'setTimerSound',
+  'discussTopic', 'stopTimer', 'restartTimer', 'returnTopic', 'extendTopic', 'finishTopic', 'undoMoveOn', 'setTimerSound',
 ]);
 
 // The only commands an ended meeting accepts.
@@ -45,6 +45,7 @@ export function apply(state: BoardState, actorId: string, cmd: Command, now: num
     case 'restartTimer': return restartTimer(state, cmd, now);
     case 'returnTopic': return returnTopic(state, cmd);
     case 'finishTopic': return finishTopic(state, cmd);
+    case 'undoMoveOn': return undoMoveOn(state, cmd);
     case 'voteToContinue': return voteToContinue(state, actorId, cmd);
     case 'extendTopic': return extendTopic(state, cmd, now);
     case 'setTimerSound': return setTimerSound(state, cmd);

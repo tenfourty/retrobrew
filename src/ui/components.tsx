@@ -1,7 +1,7 @@
 import { toChildArray, type ButtonHTMLAttributes, type ComponentChildren } from 'preact';
-import { useState } from 'preact/hooks';
+import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { cx } from './cx';
-import { capAtCaret, capTopic, charactersLeftText, COUNTER_FROM, formatClock, topicLength } from './format';
+import { capAtCaret, charactersLeftText, COUNTER_FROM, CUT_NOTICE, formatClock, overTopicLimit, topicLength } from './format';
 import { setMode, useMode, type Mode } from './mode';
 
 // Native Preact port of design/system/components/bundle.js. Class names stay identical so bundle.css applies.
@@ -114,6 +114,8 @@ export interface TopicEditing {
   label: string;
   value: string;
   onInput: (value: string) => void;
+  // An inline message under the field (an emptied edit), read with the field.
+  error?: string;
   onSave: () => void;
   onCancel: () => void;
 }
@@ -124,17 +126,27 @@ export interface TopicCardProps {
   children?: ComponentChildren; className?: string;
 }
 // Focuses the edit field once, when it appears (the autofocus attribute is ignored on an element added after load).
-function focusOnMount(input: HTMLInputElement | null): void {
+function focusOnMount(input: HTMLTextAreaElement | null): void {
   if (input && !input.dataset.focused) { input.dataset.focused = '1'; input.focus(); }
 }
 
-function takeEdit(editing: TopicEditing, input: HTMLInputElement): void {
+// Cuts what overflowed from the inserted text, as the add box does; returns whether anything was cut.
+function takeEdit(editing: TopicEditing, input: HTMLTextAreaElement): boolean {
+  const cut = overTopicLimit(input.value);
   const { text, caret } = capAtCaret(editing.value, input.value, input.selectionStart ?? input.value.length);
   if (text !== input.value) {
     input.value = text;
     input.setSelectionRange(caret, caret);
   }
   editing.onInput(text);
+  return cut;
+}
+
+// A one-line topic can still be long: the edit field is a textarea that grows with its text, so all of it shows.
+function growToFit(input: HTMLTextAreaElement | null): void {
+  if (!input) return;
+  input.style.height = 'auto';
+  input.style.height = `${input.scrollHeight}px`;
 }
 
 // A topic (design/system/components/TopicCard). `actions` is its row of small buttons; `editing` turns its text into a
@@ -142,16 +154,32 @@ function takeEdit(editing: TopicEditing, input: HTMLInputElement): void {
 export function TopicCard(props: TopicCardProps) {
   const state = props.state ?? 'ideas';
   const editing = props.editing;
+  const [cut, setCut] = useState(false);
+  const field = useRef<HTMLTextAreaElement | null>(null);
+  useLayoutEffect(() => { growToFit(field.current); }, [editing?.value, editing === undefined]);
+  const editLength = editing ? topicLength(editing.value) : 0;
+  const editCounted = editLength >= COUNTER_FROM;
+  const editId = `edit-${props.number}`;
+  const editDescribed = [editing?.error ? `${editId}-error` : '', editCounted ? `${editId}-count` : '', cut ? `${editId}-cut` : ''].filter(Boolean).join(' ') || undefined;
   return (
     <article className={cx('rb-card', `rb-st-${state}`, props.live && 'rb-card-live', props.className)} data-card={props.number}>
       {editing ? (
         <form className="rb-card-edit" onSubmit={(e) => { e.preventDefault(); editing.onSave(); }}>
-          <label className="rb-visually-hidden" htmlFor={`edit-${props.number}`}>{editing.label}</label>
-          <input id={`edit-${props.number}`} className="rb-input" value={editing.value} ref={focusOnMount}
+          <label className="rb-visually-hidden" htmlFor={editId}>{editing.label}</label>
+          <textarea id={editId} className="rb-input rb-card-edit-field" rows={1} value={editing.value}
+            ref={(el) => { field.current = el; focusOnMount(el); }}
+            aria-invalid={editing.error ? 'true' : undefined} aria-describedby={editDescribed}
             // Cut only what overflowed from the inserted text, as the add box does, and not mid-composition.
-            onInput={(e) => (e as InputEvent).isComposing ? editing.onInput(e.currentTarget.value) : takeEdit(editing, e.currentTarget)}
-            onCompositionEnd={(e) => takeEdit(editing, e.currentTarget)}
-            onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); editing.onCancel(); } }} />
+            onInput={(e) => { if ((e as InputEvent).isComposing) editing.onInput(e.currentTarget.value); else setCut(takeEdit(editing, e.currentTarget)); }}
+            onCompositionEnd={(e) => setCut(takeEdit(editing, e.currentTarget))}
+            // A topic is one line: Enter saves, as it did in the single-line field; Escape cancels.
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); editing.onCancel(); }
+              else if (e.key === 'Enter' && !(e as KeyboardEvent).isComposing) { e.preventDefault(); editing.onSave(); }
+            }} />
+          {editing.error ? <p className="rb-card-alert" id={`${editId}-error`} role="alert">{editing.error}</p> : null}
+          {editCounted ? <p className="rb-add-count" id={`${editId}-count`}>{charactersLeftText(editLength)}</p> : null}
+          {cut ? <p className="rb-add-count rb-add-cut" id={`${editId}-cut`} role="status">{CUT_NOTICE}</p> : null}
           <div className="rb-card-actions">
             <Button type="submit" size="sm" variant="primary">Save</Button>
             <Button size="sm" variant="ghost" onClick={editing.onCancel}>Cancel</Button>
@@ -202,7 +230,10 @@ export function DialTimer(props: { remaining: number; total: number; warnAt?: nu
 
 export interface TopicInputProps {
   onAdd?: (text: string) => void; value?: string; onValueChange?: (text: string) => void; onFocus?: () => void; onBlur?: () => void;
-  placeholder?: string; cta?: string; hint?: string; id?: string; className?: string; disabled?: boolean;
+  placeholder?: string; cta?: string; hint?: string;
+  // A quiet link beside the hint (Change, for the name the hint names). It keeps focus in the field, as the Add button does.
+  hintAction?: { label: string; onClick: (from: HTMLElement) => void };
+  id?: string; className?: string; disabled?: boolean;
 }
 // Enter submits and keeps focus here. Pass value and onValueChange to control it, so the page knows about a draft.
 export function TopicInput(props: TopicInputProps) {
@@ -215,9 +246,12 @@ export function TopicInput(props: TopicInputProps) {
   };
   const length = topicLength(value);
   const counted = length >= COUNTER_FROM;
-  const describedBy = [counted ? `${id}-count` : '', props.hint ? `${id}-hint` : ''].filter(Boolean).join(' ') || undefined;
+  // Set when the last change cut pasted or typed text to the limit; cleared by the next change that cuts nothing.
+  const [cut, setCut] = useState(false);
+  const describedBy = [counted ? `${id}-count` : '', cut ? `${id}-cut` : '', props.hint ? `${id}-hint` : ''].filter(Boolean).join(' ') || undefined;
   // Cut only what overflowed from the inserted text, and put the caret where the insertion ended.
   const take = (input: HTMLInputElement) => {
+    setCut(overTopicLimit(input.value));
     const { text, caret } = capAtCaret(value, input.value, input.selectionStart ?? input.value.length);
     if (text !== input.value) {
       input.value = text;
@@ -231,6 +265,7 @@ export function TopicInput(props: TopicInputProps) {
       const text = value.trim();
       if (!text) return;
       props.onAdd?.(text);
+      setCut(false);
       set('');
     }}>
       <label htmlFor={id} className="rb-visually-hidden">New topic</label>
@@ -244,7 +279,13 @@ export function TopicInput(props: TopicInputProps) {
       {/* Tapping the button keeps focus in the field, as Enter does, so a phone keeps its keyboard and nothing moves under the tap. */}
       <Button type="submit" variant="primary" disabled={props.disabled} onMouseDown={(e) => e.preventDefault()}>{props.cta ?? 'Add topic'}</Button>
       {counted ? <p className="rb-add-count" id={`${id}-count`}>{charactersLeftText(length)}</p> : null}
-      {props.hint ? <p className="rb-add-hint" id={`${id}-hint`}>{props.hint}</p> : null}
+      {cut ? <p className="rb-add-count rb-add-cut" id={`${id}-cut`} role="status">{CUT_NOTICE}</p> : null}
+      {props.hint ? (
+        <p className="rb-add-hint">
+          <span id={`${id}-hint`}>{props.hint}</span>
+          {props.hintAction ? <>{' '}<button type="button" className="rb-link rb-add-action" onMouseDown={(e) => e.preventDefault()} onClick={(e) => props.hintAction?.onClick(e.currentTarget)}>{props.hintAction.label}</button></> : null}
+        </p>
+      ) : null}
     </form>
   );
 }

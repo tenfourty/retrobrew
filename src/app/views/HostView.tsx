@@ -6,11 +6,12 @@ import { exportBoard, type BoardRecord, type BoardStore } from '../../store/boar
 import { Button } from '../../ui/components';
 import { Announcer } from '../announcer';
 import { countedView } from '../counted-view';
-import { COPY, hostBanner, OUTCOME_MS, type BannerAction } from '../banners';
+import { COPY, hostBanner, outcomeMs, type BannerAction } from '../banners';
 import { acquireBoardLock, downloadText, type BoardLock } from '../browser';
 import { takeJustCreated } from '../handoff';
 import { recordLink, startHosting, type HostHandle } from '../host-controller';
 import { StartCancelled } from '../startup';
+import { rememberName } from '../identity';
 import { forced, forcedStartError } from '../test-hooks';
 import { MeetingScreen, type Refusal } from './MeetingScreen';
 import { StatePage, StatePanel } from './StatePage';
@@ -35,7 +36,7 @@ export function HostView({ record, store }: { record: BoardRecord; store: BoardS
 
   const showOutcome = (next: Outcome) => {
     setOutcome(next);
-    setTimeout(() => setOutcome((shown) => (shown === next ? null : shown)), OUTCOME_MS);
+    setTimeout(() => setOutcome((shown) => (shown === next ? null : shown)), outcomeMs(next));
   };
 
   // Start-up can be cancelled: if this view goes away, or starts again, the late session is closed, not leaked.
@@ -135,7 +136,8 @@ export function HostView({ record, store }: { record: BoardRecord; store: BoardS
     <Announcer>
       <MeetingScreen view={redactFor(h.session.current, hostId, { online: h.session.online() })} you={hostId} hostNow={() => h.session.hostNow()}
         send={send} refusal={refusal} readOnly={false} outcome={outcome}
-        banner={hostBanner({ ...h.session, persistenceRefused: h.persistenceRefused() && !persistenceDismissed, ...forced().host })} onBannerAction={onBannerAction}
+        onRename={(name) => { void h.session.local({ type: 'join', name }); void rememberName(store, name); }}
+        banner={hostBanner({ ...h.session, storageNotice: !persistenceDismissed, ...forced().host })} onBannerAction={onBannerAction}
         host={{ link: recordLink(current, location.href), presence: h.session.presence(), relays: h.session.relayHealth(), oversizeCount: h.session.oversizeCount, onBackUp: backUp,
           countedView: (() => {
             const online = h.session.online();

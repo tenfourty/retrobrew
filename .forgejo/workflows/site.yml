@@ -34,7 +34,7 @@ jobs:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     services:
       dind:
-        image: docker:28-dind
+        image: docker:28-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac
         # `docker build --network host` keeps the build on the dind's own resolver instead
         # of the inner bridge's fallback to Google DNS.
         options: --privileged
@@ -43,12 +43,14 @@ jobs:
     env:
       DOCKER_HOST: tcp://dind:2375
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       # The job container has no docker CLI of its own, only the dind service.
       - name: docker cli
         run: |
-          curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-28.3.3.tgz | tar xz -C /tmp
+          curl -fsSL -o /tmp/docker.tgz https://download.docker.com/linux/static/stable/x86_64/docker-28.3.3.tgz
+          echo "40c16bcf324f354b382d07e845e6a79e3493fc0c09b252dff9e1a46125589bff  /tmp/docker.tgz" | sha256sum -c -
+          tar xzf /tmp/docker.tgz -C /tmp
           install /tmp/docker/docker /usr/local/bin/docker
           for i in $(seq 1 30); do docker info >/dev/null 2>&1 && break; sleep 2; done
           docker info >/dev/null
@@ -59,12 +61,12 @@ jobs:
           REGISTRY_HOST: "${{ vars.REGISTRY_HOST }}"
         run: |
           set -euo pipefail
-          hostconf=$(docker run --rm --network host alpine:3 cat /etc/resolv.conf)
+          hostconf=$(docker run --rm --network host alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a cat /etc/resolv.conf)
           printf '%s\n' "$hostconf"
           if grep -q '8\.8\.[48]\.[48]' <<<"$hostconf"; then echo "a host-network build container would resolve via Google" >&2; exit 1; fi
           if grep -q '1\.1\.1\.1' <<<"$hostconf"; then echo "a host-network build container would resolve via Cloudflare" >&2; exit 1; fi
           grep -q '^nameserver ' <<<"$hostconf" || { echo "a host-network build container has no resolver at all" >&2; exit 1; }
-          docker run --rm --network host alpine:3 getent hosts "$REGISTRY_HOST" \
+          docker run --rm --network host alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a getent hosts "$REGISTRY_HOST" \
             || { echo "a host-network build container cannot resolve $REGISTRY_HOST" >&2; exit 1; }
 
       # The Dockerfile's build stage runs npm test, npm run build and npm run check:assets,

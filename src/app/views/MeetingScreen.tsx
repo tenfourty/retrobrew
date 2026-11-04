@@ -15,12 +15,13 @@ import { Select } from '../../ui/select';
 import { ConfirmDialog, Sheet } from '../../ui/sheet';
 import { Switch } from '../../ui/switch';
 import { OutcomeLine, type TimeUpChoice } from '../../ui/time-up-vote';
-import type { ActionId } from '../action-bar';
+import { barRow, controlsLeftOut, type ActionId } from '../action-bar';
 import { announcementsBetween, lengthNotice } from '../announce';
 import { useAnnounce } from '../announcer';
 import { ACTION_LABEL, bannerTone } from '../banner-choice';
-import { type Banner as BannerData, type BannerAction } from '../banners';
+import { COPY, type Banner as BannerData, type BannerAction } from '../banners';
 import { useCopyOutcome } from '../copy-outcome';
+import { createFocusHold } from '../focus-hold';
 import { outcomeLine } from '../decision';
 import { refusalPlace } from '../refusal-place';
 import { FACILITATOR_LINE, guideLine } from '../guide';
@@ -34,12 +35,13 @@ import { DiscussionPhase } from './DiscussionPhase';
 import { EndedView } from './EndedView';
 import { FacilitatorBar, moreActions } from './FacilitatorBar';
 import { FacilitatorControls } from './FacilitatorControls';
-import { NAME_HINT } from './Home';
+import { NAME_HINT, nameHint } from './Home';
+import { RenameSheet } from './RenameSheet';
 import { PeopleSheet, SOUND_SWITCH } from './PeopleSheet';
 import { ShareSheet } from './ShareSheet';
 import { TimeboxPicker } from './TimeboxPicker';
 import { TimeUpSheet } from './TimeUpSheet';
-import { NO_VOTES_HINT_ID } from './TopicItem';
+import { DISCUSS_BLOCKED, DISCUSS_BLOCKED_ID, NO_VOTES_HINT_ID } from './TopicItem';
 import { TopicsPhase } from './TopicsPhase';
 
 // What only the facilitator's screen gets, from the host session.
@@ -71,17 +73,21 @@ export interface MeetingScreenProps {
   refusal: Refusal | null;
   // The host is offline or the versions don't match: the board stays visible, and nothing can be changed.
   readOnly: boolean;
+  // A guest's view while the facilitator's device is away: the timer keeps running on its clock, but time up can't open.
+  hostAway?: boolean;
   banner: BannerData | null;
   onBannerAction: (action: BannerAction) => void;
   outcome: Outcome | null;
   host?: HostExtras;
+  // Changes this person's name for the meeting (and remembers it on this device).
+  onRename: (name: string) => void;
   // Open the share step when the screen first shows: straight after creating the meeting.
   inviteOnOpen?: boolean;
 }
 
-export type SheetId = 'share' | 'people' | 'picker' | 'timeUp' | 'facilitator' | 'more' | 'copyText' | 'deleteTopic' | ConfirmId;
+export type SheetId = 'share' | 'people' | 'picker' | 'timeUp' | 'facilitator' | 'more' | 'copyText' | 'deleteTopic' | 'rename' | ConfirmId;
 
-const CONFIRMS: readonly SheetId[] = ['resetVotes', 'endMeeting', 'backUp'];
+const CONFIRMS: readonly SheetId[] = ['resetVotes', 'raiseVotes', 'endMeeting', 'backUp', 'stopTimer'];
 
 // Every phase uses this frame (docs/product/mvp-screens.md, The board: shared layout): the top bar, the guide line,
 // one banner, the board, the facilitator's action bar and controls, and the sheets. One sheet is open at a time.
@@ -106,7 +112,12 @@ export function MeetingScreen(props: MeetingScreenProps) {
   // switches tabs while it has focus or holds a draft.
   const [draft, setDraft] = useState('');
   const [addFocused, setAddFocused] = useState(false);
+  // Focus leaving the add box counts after a short hold (focus-hold.ts), so a tap on a card's button isn't lost to the bar returning.
+  const focusHold = useRef(createFocusHold(setAddFocused)).current;
+  useEffect(() => focusHold.cancel, []);
   const [deleting, setDeleting] = useState<TopicView | null>(null);
+  // The allowance a raise is waiting for confirmation at.
+  const [raiseTo, setRaiseTo] = useState<number | null>(null);
   // This page's own time-up ballots, by round, in memory only: never saved, never sent back by the host.
   const [choices, setChoices] = useState<Record<number, TimeUpChoice>>({});
   const left = viewVotesLeft(view);
@@ -117,17 +128,21 @@ export function MeetingScreen(props: MeetingScreenProps) {
   const showAddBox = view.phase !== 'ended' && !props.readOnly;
   const hasDock = !wide && (showAddBox || facilitator);
   useInset(dock, '--mtg-bottom', hasDock);
+  // Undo after Move on: the facilitator's, while the line shows and nothing else has started.
+  const undoable = facilitator && !props.readOnly && props.outcome?.kind === 'movedOn' && view.phase === 'discussion' && !discussing && !vote ? props.outcome : null;
   // The new timer's minute, so a rehearsal board reads "Keeping going for 30 more seconds".
   // Worked out once per outcome, so a timer that stops within the five seconds doesn't change the wording.
   // It shows in the discussion phase only: a vote closed any other way, and a meeting that ended, show no line.
   const outcome = useMemo(
-    () => (props.outcome && view.phase === 'discussion' ? outcomeLine(props.outcome, view.timer?.minuteMs ?? REAL_MINUTE_MS) : null),
-    [props.outcome, view.phase === 'discussion'],
+    // Moved on, then undone: the vote is open again, so the line has nothing left to say.
+    () => (props.outcome && view.phase === 'discussion' && !(props.outcome.kind === 'movedOn' && vote) ? outcomeLine(props.outcome, view.timer?.minuteMs ?? REAL_MINUTE_MS, discussing !== undefined) : null),
+    [props.outcome, view.phase === 'discussion', discussing !== undefined, vote !== null],
   );
 
   useEffect(() => {
     if (props.refusal) announce(props.refusal.message);
     afterDelete.current = null;
+    returning.current = false;
     // A ballot the host refused wasn't counted: unlock it so this page doesn't show a choice that isn't in the totals.
     if (props.refusal && vote && !vote.voted) {
       setChoices((known) => {
@@ -139,7 +154,7 @@ export function MeetingScreen(props: MeetingScreenProps) {
   }, [props.refusal?.n]);
   // The add box mounts again when it moves between the dock and the page (a wide flip) or goes (the meeting ended), and an
   // unmounted field sends no blur: don't keep the facilitator's bar hidden for a focus that is gone.
-  useEffect(() => { setAddFocused(false); }, [wide, showAddBox]);
+  useEffect(() => { focusHold.reset(); }, [wide, showAddBox]);
   // A delete dialog for a topic that someone else already deleted has nothing left to confirm.
   useEffect(() => {
     if (deleting && !view.topics.some((t) => t.topicId === deleting.topicId)) {
@@ -147,6 +162,14 @@ export function MeetingScreen(props: MeetingScreenProps) {
       setSheet((open) => (open === 'deleteTopic' ? null : open));
     }
   }, [view.topics, deleting]);
+  // Return topic takes away the button that was used (the bar's secondary changes with the row). Once the topic has left
+  // Discussing, focus goes to the facilitator's primary action, which is then the next step ("Discuss #n"); a refusal clears it.
+  const returning = useRef(false);
+  useEffect(() => {
+    if (!returning.current || discussing) return;
+    returning.current = false;
+    document.querySelector<HTMLElement>('[data-focus-fallback]')?.focus();
+  }, [discussing?.topicId]);
   // After a confirmed delete, once the card is gone focus goes to a neighbouring card's first button, or else the column
   // it was in (the Ideas region, To discuss).
   const afterDelete = useRef<{ topicId: number; next: HTMLElement | null; column: HTMLElement | null } | null>(null);
@@ -259,12 +282,12 @@ export function MeetingScreen(props: MeetingScreenProps) {
       ? { type: 'restartTimer', topicId: picker.topicId, minutes, ...extra }
       : { type: 'discussTopic', topicId: picker.topicId, minutes, ...extra });
     setSheet(null);
-    // "Start again" came from the time-up sheet, which is gone now, and the Vote chip went with the vote. Focus lands on the
+    // "New timebox" came from the time-up sheet, which is gone now, and the Vote chip went with the vote. Focus lands on the
     // page's fallback target: the facilitator's bar, whose primary button follows the new timer. A restart from the
     // action bar returns focus to the bar itself.
     if (picker.fromVote) setTimeout(() => document.querySelector<HTMLElement>('[data-focus-fallback]')?.focus(), 0);
   };
-  // Cancelling "Start again" goes back to the vote it interrupted; any other Cancel returns to its opener.
+  // Cancelling "New timebox" goes back to the vote it interrupted; any other Cancel returns to its opener.
   const cancelPicker = () => {
     if (picker?.restart && vote) { setAtDecision(true); setSheet('timeUp'); } else closeSheet();
   };
@@ -282,11 +305,11 @@ export function MeetingScreen(props: MeetingScreenProps) {
     if (id === 'reopen') send({ type: 'reopenMeeting' });
     else if (id === 'backUp') openSheet('backUp', from);
     else if (id === 'decide') openVote(true, from);
-    else if (id === 'stopTimer' && discussing) send({ type: 'stopTimer', topicId: discussing.topicId });
+    else if (id === 'stopTimer' && discussing) openSheet('stopTimer', from);
     else if (id === 'facilitator') openSheet('facilitator', from);
     else if (id === 'more') openSheet('more', from);
     else if (id === 'finish' && discussing) send({ type: 'finishTopic', topicId: discussing.topicId });
-    else if (id === 'returnTopic' && discussing) send({ type: 'returnTopic', topicId: discussing.topicId });
+    else if (id === 'returnTopic' && discussing) { returning.current = true; send({ type: 'returnTopic', topicId: discussing.topicId }); }
     else if (id === 'startTimer' && discussing) openPicker(discussing.topicId, true, from);
     else if (id === 'discussNext') {
       const next = columnOrder(view, 'toDiscuss')[0];
@@ -296,7 +319,7 @@ export function MeetingScreen(props: MeetingScreenProps) {
     else if (id === 'startDiscussion') send({ type: 'startDiscussion' });
     else if (id === 'invite') openSheet('share', from);
     // An action in the More sheet that opens no sheet of its own closes it.
-    const opensSheet = ['backUp', 'decide', 'startTimer', 'discussNext', 'endMeeting', 'invite', 'copyText'].includes(id);
+    const opensSheet = ['backUp', 'stopTimer', 'decide', 'startTimer', 'discussNext', 'endMeeting', 'invite', 'copyText'].includes(id);
     if (fromMore && !opensSheet) closeSheet();
   };
   const onBannerAction = (action: BannerAction) => {
@@ -316,23 +339,37 @@ export function MeetingScreen(props: MeetingScreenProps) {
       <Switch label={SOUND_SWITCH} checked={sound} onChange={changeSound} />
     </div>
   );
-  const controls = (
-    <FacilitatorControls view={view} readOnly={props.readOnly} send={send} onInvite={(from) => openSheet('share', from)}
-      onResetVotes={(from) => openSheet('resetVotes', from)} onEndMeeting={(from) => openSheet('endMeeting', from)} sound={soundControls} />
+  const myName = view.attendees[you]?.name;
+  const row = barRow(view);
+  // Each facilitator button shows once: the controls leave out what the bar beside them (wide) or the More list above them offers.
+  const controlsFor = (where: 'wide' | 'more' | 'facilitator') => (
+    <FacilitatorControls view={view} leaveOut={controlsLeftOut(row, where)} readOnly={props.readOnly}
+      send={(cmd) => { if (cmd.type === 'returnTopic') returning.current = true; send(cmd); }} onInvite={(from) => openSheet('share', from)}
+      onResetVotes={(from) => openSheet('resetVotes', from)} onRaiseVotes={(votes, from) => { setRaiseTo(votes); openSheet('raiseVotes', from); }} onEndMeeting={(from) => openSheet('endMeeting', from)} sound={soundControls} />
   );
   const more = moreActions(view);
+  // Phones have no mode switch in the top bar: the facilitator finds it at the foot of the More and Facilitator sheets, and
+  // a guest in the People sheet (which has no bar to put it in).
+  const displaySection = (
+    <section className="mtg-sheet-section" aria-labelledby="sheet-display">
+      <h3 className="mtg-sheet-heading" id="sheet-display">Display</h3>
+      <div><ModeSwitch /></div>
+    </section>
+  );
   // The add box: above the board on wide screens, pinned to the bottom of the screen on phones.
   const addBox = showAddBox ? (
     <div className="mtg-add">
       {alertFor('add') ? <p className="rb-alert">{alertFor('add')}</p> : null}
-      <TopicInput value={draft} onValueChange={setDraft} onFocus={() => setAddFocused(true)} onBlur={() => setAddFocused(false)}
-        cta={view.phase === 'discussion' ? 'Add another topic' : 'Add topic'} hint={NAME_HINT}
+      <TopicInput value={draft} onValueChange={setDraft} onFocus={focusHold.focus} onBlur={focusHold.blur}
+        cta={view.phase === 'discussion' && view.topics.length > 0 ? 'Add another topic' : 'Add topic'}
+        hint={myName ? nameHint(myName) : NAME_HINT} hintAction={myName && !props.readOnly ? { label: 'Change', onClick: (from) => openSheet('rename', from) } : undefined}
         onAdd={(text) => sendFrom('add')({ type: 'addTopic', text })} />
     </div>
   ) : null;
   const sidePanel = facilitator && wide;
-  // On an ended meeting the ended banner always wins for a participant, so no connection banner shows.
-  const shown = view.phase === 'ended' && !facilitator ? null : props.banner;
+  // On an ended meeting the ended banner always wins for a participant, so no connection banner shows; for the facilitator
+  // it wins over the storage notice, which is only advice, but not over a failed save or the network.
+  const shown = view.phase === 'ended' && (!facilitator || props.banner?.text === COPY.storageNotice) ? null : props.banner;
   const action = shown?.action;
 
   return (
@@ -344,10 +381,10 @@ export function MeetingScreen(props: MeetingScreenProps) {
             {view.rehearsal ? <Badge>Rehearsal</Badge> : null}
           </div>
           <p className="rb-sub mtg-guide">
-            <span>{guideLine(view.phase, facilitator, view.voteAllowance)}</span>{' '}
+            <span>{guideLine(view.phase, facilitator, view.voteAllowance)}</span>
             <a className="rb-link" href="/lean-coffee/" target="_blank" rel="noopener">How Lean Coffee works</a>
           </p>
-          {facilitator ? <p className="rb-sub">{FACILITATOR_LINE}</p> : null}
+          {facilitator && view.phase !== 'ended' ? <p className="rb-sub">{FACILITATOR_LINE}</p> : null}
         </div>
         <div className="mtg-top-end">
           <Button variant="ghost" size="sm" onClick={(e) => openSheet('people', e.currentTarget)}>{`${view.online.length} here`}</Button>
@@ -376,6 +413,7 @@ export function MeetingScreen(props: MeetingScreenProps) {
       {/* The outcome line sits inside the discussion phase: under the strip on phones, in the Discussing column on wide screens. */}
       {alertFor('top') ? <p className="rb-alert mtg-refusal">{alertFor('top')}</p> : null}
       <span id={NO_VOTES_HINT_ID} hidden>You have no votes left</span>
+      <span id={DISCUSS_BLOCKED_ID} hidden>{DISCUSS_BLOCKED}</span>
       <div className="mtg-body">
         <div className="mtg-main">
           {wide ? addBox : null}
@@ -386,8 +424,10 @@ export function MeetingScreen(props: MeetingScreenProps) {
           {view.phase === 'ended' ? <EndedView view={view} you={you} facilitator={facilitator} /> : null}
           {view.phase === 'discussion' ? (
             <DiscussionPhase view={view} you={you} facilitator={facilitator} readOnly={props.readOnly} votesLeft={left} wide={wide}
-              hostNow={props.hostNow} countedDown={countedDown} typing={addFocused || draft.trim() !== ''}
-              outcome={outcome ? <OutcomeLine>{outcome}</OutcomeLine> : null}
+              hostNow={props.hostNow} hostAway={props.hostAway ?? false} countedDown={countedDown} typing={addFocused || draft.trim() !== ''}
+              outcome={outcome ? (
+                <OutcomeLine action={undoable ? <Button variant="ghost" size="sm" onClick={() => send({ type: 'undoMoveOn', topicId: undoable.topicId })}>Undo</Button> : undefined}>{outcome}</OutcomeLine>
+              ) : null}
               send={(cmd, from) => sendFrom(from)(cmd)} onDelete={askDelete} alertFor={alertFor}
               onDiscuss={(topicId, from) => openPicker(topicId, false, from)} onOpenVote={(from) => openVote(false, from)} />
           ) : null}
@@ -396,10 +436,12 @@ export function MeetingScreen(props: MeetingScreenProps) {
           <aside className="mtg-side" aria-label="Facilitator">
             <FacilitatorBar view={view} wide readOnly={props.readOnly} copied={copied} onAction={onAction} />
             {/* Every row offers the Facilitator controls, which wide screens show in place. */}
-            <section className="mtg-side-section" aria-labelledby="facilitator-controls">
-              <h2 className="mtg-side-title" id="facilitator-controls">Facilitator</h2>
-              {controls}
-            </section>
+            {view.phase === 'ended' ? null : (
+              <section className="mtg-side-section" aria-labelledby="facilitator-controls">
+                <h2 className="mtg-side-title" id="facilitator-controls">Facilitator</h2>
+                {controlsFor('wide')}
+              </section>
+            )}
           </aside>
         ) : null}
       </div>
@@ -426,12 +468,14 @@ export function MeetingScreen(props: MeetingScreenProps) {
           onMoveOn={() => { send({ type: 'finishTopic', topicId: vote.topicId }); setSheet(null); }}
           onStartAgain={() => openPicker(vote.topicId, true)} />
       ) : null}
+      <RenameSheet open={sheet === 'rename'} current={myName ?? ''} returnFocusTo={opener.current} onClose={closeSheet}
+        onSave={(name) => { if (name !== myName) props.onRename(name); closeSheet(); }} />
       <Sheet open={sheet === 'copyText'} title="Copy as text" onClose={closeSheet} returnFocusTo={opener.current}>
         {copyFallback !== null ? <CopyField text={copyFallback} /> : null}
       </Sheet>
       {deleting ? (
         <ConfirmDialog open={sheet === 'deleteTopic'} title={`Delete #${deleting.topicId}?`} onCancel={closeSheet} returnFocusTo={opener.current}
-          body={<p>The topic and its votes are removed, and everyone gets those votes back.</p>}
+          body={<><p className="mtg-sheet-topic">{deleting.text}</p><p>The topic and its votes are removed, and everyone gets those votes back.</p></>}
           actions={[{ label: 'Delete topic', variant: 'danger', onClick: () => {
             const card = opener.current?.closest('article') ?? null;
             // The neighbour is the next topic card, else the previous one; headings and notes between cards don't count, and
@@ -449,14 +493,17 @@ export function MeetingScreen(props: MeetingScreenProps) {
       ) : null}
       {facilitator ? (
         <>
-          <Sheet open={sheet === 'facilitator'} title="Facilitator" onClose={closeSheet} returnFocusTo={opener.current}>{controls}</Sheet>
+          <Sheet open={sheet === 'facilitator'} title="Facilitator" onClose={closeSheet} returnFocusTo={opener.current}>{controlsFor('facilitator')}{displaySection}</Sheet>
           <Sheet open={sheet === 'more'} title="More" onClose={closeSheet} returnFocusTo={opener.current}>
             <ActionList actions={more.actions.map((a) => ({ label: a.label, onClick: (from) => onAction(a.id, from) }))} />
-            {more.controls ? <section className="mtg-sheet-section" aria-label="Facilitator controls">{controls}</section> : null}
+            {more.controls ? <section className="mtg-sheet-section" aria-label="Facilitator controls">{controlsFor('more')}</section> : null}
+            {displaySection}
           </Sheet>
-          <Confirmations open={sheet !== null && CONFIRMS.includes(sheet) ? (sheet as ConfirmId) : null} view={view} opener={opener.current} onCancel={closeSheet}
+          <Confirmations open={sheet !== null && CONFIRMS.includes(sheet) ? (sheet as ConfirmId) : null} view={view} raiseTo={raiseTo} opener={opener.current} onCancel={closeSheet}
+            onRaiseVotes={() => { if (raiseTo !== null) send({ type: 'raiseAllowance', votes: raiseTo }); closeSheet(); }}
             onResetVotes={() => { send({ type: 'clearVotes' }); closeSheet(); }}
             onEndMeeting={() => { send({ type: 'endMeeting' }); closeSheet(); }}
+            onStopTimer={() => { if (discussing) send({ type: 'stopTimer', topicId: discussing.topicId }); closeSheet(); }}
             onBackUp={() => { host?.onBackUp(); closeSheet(); }}
             onCopy={() => void copyFromConfirm()} copied={copied} copyFallback={copyFallback} />
         </>

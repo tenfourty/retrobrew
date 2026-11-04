@@ -24,6 +24,13 @@ export function capTopic(text: string): string {
   return [...text.replace(/\r\n|[\r\n\p{Zl}\p{Zp}]/gu, ' ')].slice(0, TOPIC_MAX).join('');
 }
 
+// Whether text that was typed or pasted into the field is longer than a topic can be, so that part of it will be cut.
+export function overTopicLimit(raw: string): boolean {
+  return topicLength(raw.replace(/\r\n|[\r\n\p{Zl}\p{Zp}]/gu, ' ')) > TOPIC_MAX;
+}
+
+export const CUT_NOTICE = `Your text was cut to ${TOPIC_MAX} characters`;
+
 // The field's value after an edit that left the caret at `caret` (UTF-16 offset in `next`). The text before the caret
 // that `previous` already had and everything after the caret stay; only what overflowed from the inserted text is cut,
 // so typing or pasting into the middle of a full field never drops the existing tail. Returns the caret to restore.

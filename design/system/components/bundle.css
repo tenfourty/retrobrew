@@ -41,7 +41,8 @@
 }
 
 html, body { background: var(--desk); color: var(--ink); min-height: 100%; }
-body { margin: 0; font-family: var(--rb-font-body); font-size: 15px; line-height: 1.45; }
+/* The body fills the screen, so Party's dot pattern (painted on the body) runs to the bottom of a short page too. */
+body { margin: 0; font-family: var(--rb-font-body); font-size: 15px; line-height: 1.45; min-height: 100vh; min-height: 100dvh; }
 [data-theme^="party"] body {
   background-image: radial-gradient(color-mix(in srgb, var(--ink) 9%, transparent) 1px, transparent 1px);
   background-size: 6px 6px;
@@ -66,10 +67,8 @@ body { margin: 0; font-family: var(--rb-font-body); font-size: 15px; line-height
 .rb-btn-primary:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
 .rb-btn-secondary { background: var(--card); color: var(--ink); border-color: var(--border); }
 .rb-btn-secondary:hover:not(:disabled) { background: var(--sunken); }
-[data-theme^="party"] .rb-btn-secondary { background: var(--dot-3); color: var(--on-state-todiscuss); border-color: var(--ink); }
-[data-theme="party-dark"] .rb-btn-secondary { border-color: var(--dot-3); }
-/* Party keeps the sticker yellow on hover, with an offset shadow, so the dark label never ends up on a dark ground. */
-[data-theme^="party"] .rb-btn-secondary:hover:not(:disabled) { background: var(--dot-3); box-shadow: 2px 2px 0 var(--ink); }
+/* Party keeps secondary buttons as quiet as Business ones (card ground, --border edge): only the primary is filled, so the
+   next step stands out. Party's --border is the ink blue in light and a pale periwinkle in dark. */
 .rb-btn-ghost { background: transparent; color: var(--ink); }
 .rb-btn-ghost:hover:not(:disabled) { background: var(--sunken); }
 .rb-btn-danger { background: transparent; color: var(--danger); border-color: var(--danger); }
@@ -98,7 +97,7 @@ body { margin: 0; font-family: var(--rb-font-body); font-size: 15px; line-height
 
 /* ---------- TopicCard ---------- */
 .rb-card {
-  position: relative; display: grid; gap: var(--space-3); padding: var(--space-3);
+  position: relative; display: grid; align-content: start; gap: var(--space-3); padding: var(--space-3);
   background: var(--card); color: var(--ink); border-radius: var(--rb-radius-card);
   border: var(--rb-card-edge) solid var(--ink); border-top: 3px solid var(--st, var(--rule));
   box-shadow: var(--shadow-card);
@@ -114,9 +113,15 @@ body { margin: 0; font-family: var(--rb-font-body); font-size: 15px; line-height
 [data-theme^="party"] .rb-card-text { font-weight: 500; }
 .rb-card-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); font-size: 13px; color: var(--ink-soft); }
 .rb-card-num { font-variant-numeric: tabular-nums; }
-.rb-card-actions { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
+.rb-card-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-1) var(--space-2); }
+/* Buttons come in groups that each fill a row and share its width (voting, care of the topic, next step), so a card's
+   five buttons never wrap unevenly. */
+.rb-card-group { flex: 1 1 100%; display: flex; gap: var(--space-2); }
+.rb-card-group > .rb-btn { flex: 1 1 0; min-width: 0; justify-content: center; text-align: center; }
 .rb-card-edit { display: grid; gap: var(--space-2); }
 .rb-card-edit .rb-input { flex: none; width: 100%; box-sizing: border-box; min-height: 44px; }
+/* The edit field is a textarea that grows with its text (the app sets its height), so a long topic shows whole. */
+.rb-card-edit .rb-card-edit-field { resize: none; overflow: hidden; display: block; }
 .rb-card-alert { margin: 0; font-size: 13px; font-weight: 700; color: var(--danger); }
 
 /* ---------- VoteDots ---------- */
@@ -181,6 +186,7 @@ body { margin: 0; font-family: var(--rb-font-body); font-size: 15px; line-height
 .rb-input { flex: 1 1 220px; min-width: 0; min-height: 44px; box-sizing: border-box; font: 400 15px/1.3 var(--rb-font-body); color: var(--ink); background: var(--sunken); border: 1.5px solid var(--border); border-radius: var(--rb-radius-input); padding: 10px 12px; }
 .rb-input::placeholder { color: var(--ink-soft); }
 .rb-add-hint { flex-basis: 100%; font-size: 12.5px; color: var(--ink-soft); margin: 0; }
+.rb-add-cut { color: var(--danger); font-weight: 700; }
 .rb-add-count { flex-basis: 100%; font-size: 12.5px; color: var(--ink-soft); margin: 0; font-variant-numeric: tabular-nums; }
 
 /* ---------- AttendeeChip ---------- */
@@ -301,7 +307,8 @@ body { margin: 0; font-family: var(--rb-font-body); font-size: 15px; line-height
 /* ---------- Segmented choice ---------- */
 /* A single choice from a row of buttons, each marked with aria-pressed. It wraps onto more rows on phones. */
 .rb-segmented-field { display: grid; gap: var(--space-1); min-width: 0; }
-.rb-segmented { display: grid; grid-template-columns: repeat(auto-fit, minmax(52px, 1fr)); gap: var(--space-1); }
+.rb-segmented { display: grid; grid-template-columns: repeat(var(--seg-cols, auto-fit), minmax(52px, 1fr)); gap: var(--space-1); }
+.rb-segment { white-space: nowrap; }
 .rb-segment { min-height: 44px; padding: 6px 8px; border: 1.5px solid var(--border); border-radius: var(--rb-radius-control); background: var(--card); color: var(--ink);
   font: 700 13.5px/1.15 var(--rb-font-body); font-variant-numeric: tabular-nums; cursor: pointer; }
 .rb-segment[aria-pressed="true"] { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
@@ -372,3 +379,7 @@ ol.rb-summary-list > li::before { content: counter(rb-summary) "."; font: var(--
 .rb-select { appearance: none; width: 100%; box-sizing: border-box; min-height: 44px; padding-right: 36px; cursor: pointer;
   background-image: linear-gradient(45deg, transparent 50%, var(--ink) 50%), linear-gradient(135deg, var(--ink) 50%, transparent 50%);
   background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px; background-repeat: no-repeat; }
+
+/* Business body type (Atkinson Hyperlegible) draws a slashed zero, which in a small count reads as a crossed circle. Counts use
+   the display face, whose zero is plain. Party's body face (DM Sans) already has one. */
+[data-theme^="business"] :is(.rb-chip-count, .rb-dots-count, .rb-tab-count, .rb-strip-num, .rb-card-num) { font-family: var(--font-display); font-weight: 500; }

@@ -148,7 +148,7 @@ test('a facilitator and five participants run a rehearsal meeting for 50 minutes
     for (const [i, page] of people.entries()) {
       for (const [k, n] of ballots[i].entries()) {
         const card = page.locator('article').filter({ has: page.getByText(`Soak topic ${n}`, { exact: true }) });
-        await card.getByRole('button', { name: 'Vote', exact: true }).click();
+        await card.getByRole('button', { name: /^Vote for / }).click();
         await expect(page.getByText(k === 2 ? 'No votes left' : `${2 - k} ${2 - k === 1 ? 'vote' : 'votes'} left`, { exact: true })).toBeVisible({ timeout: NETWORK_WAIT });
       }
     }
@@ -186,14 +186,12 @@ test('a facilitator and five participants run a rehearsal meeting for 50 minutes
         rounds += 1;
         if (!keepGoing && !finish) {
           await host.keyboard.press('Escape');
-          await bar.getByRole('button', { name: 'Stop timer' }).click();
-          await bar.getByRole('button', { name: 'Return topic' }).click();
+          // Time is up, so there is no timer to stop: Return topic is in the Facilitator panel.
+          await host.getByRole('complementary', { name: 'Facilitator' }).getByRole('button', { name: 'Return topic' }).click();
           break;
         }
         const decision = timeUpSheet(host).locator('.mtg-decision').getByRole('button');
-        const [primary, secondary] = [decision.first(), decision.nth(1)];
-        const keepFirst = (await primary.textContent())?.startsWith('Keep going');
-        await (keepGoing === keepFirst ? primary : secondary).click();
+        await (keepGoing ? decision.nth(1) : decision.first()).click();
       }
       cycles += 1;
       if (finish) finished += 1;

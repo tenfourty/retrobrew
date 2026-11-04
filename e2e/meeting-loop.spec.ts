@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
   addTopic, APP_PATH, discussTopic, expectNoA11yViolations, expectNoA11yViolationsInEveryTheme, hostMeeting, joinMeeting, NETWORK_WAIT,
-  banner, outcomeLine, timeUpSheet, topicCard,
+  banner, outcomeLine, stopTimer, timeUpSheet, topicCard,
 } from './helpers';
 
 // The whole Lean Coffee loop on a rehearsal board, where a timebox minute lasts 10 seconds: a facilitator and two
@@ -10,7 +10,7 @@ const TIME_UP_WAIT = 30_000;
 const decision = (page: Page) => timeUpSheet(page).locator('.mtg-decision').getByRole('button');
 const bar = (page: Page) => page.getByRole('group', { name: 'Next step' });
 const panel = (page: Page) => page.getByRole('complementary', { name: 'Facilitator' });
-const vote = (page: Page, topic: string) => topicCard(page, topic).getByRole('button', { name: 'Vote', exact: true });
+const vote = (page: Page, topic: string) => topicCard(page, topic).getByRole('button', { name: /^Vote for / });
 
 test('a whole meeting runs from topics to Copy as text', async ({ browser }) => {
   test.setTimeout(240_000);
@@ -41,6 +41,7 @@ test('a whole meeting runs from topics to Copy as text', async ({ browser }) => 
     await ben.getByRole('textbox', { name: /^Edit #\d+$/ }).press('Enter');
     await expect(topicCard(ann, 'Pairing rotation for new joiners')).toBeVisible({ timeout: NETWORK_WAIT });
     await panel(host).getByRole('group', { name: 'Votes each' }).getByRole('button', { name: '5' }).click();
+    await host.getByRole('dialog', { name: 'Give everyone 5 votes?' }).getByRole('button', { name: 'Give 5 votes' }).click();
     await expect(ann.getByText('5 votes left', { exact: true })).toBeVisible({ timeout: NETWORK_WAIT });
     await vote(ann, 'Release notes').click();
     await expect(ann.getByText('4 votes left', { exact: true })).toBeVisible({ timeout: NETWORK_WAIT });
@@ -63,7 +64,7 @@ test('a whole meeting runs from topics to Copy as text', async ({ browser }) => 
 
     // Any topic can be discussed, not only the top one: stop, restart and return it.
     await discussTopic(host, 'Retro format', '10 s');
-    await bar(host).getByRole('button', { name: 'Stop timer' }).click();
+    await stopTimer(host);
     await bar(host).getByRole('button', { name: 'Start timer' }).click();
     const restart = host.getByRole('dialog', { name: /^Start a timer for #\d+$/ });
     await restart.getByRole('group', { name: 'Timebox' }).getByRole('button', { name: '20 s', exact: true }).click();
@@ -82,18 +83,19 @@ test('a whole meeting runs from topics to Copy as text', async ({ browser }) => 
     await timeUpSheet(ben).getByRole('button', { name: 'Keep going', exact: true }).click();
     await expect(timeUpSheet(host).getByText('2 voted · 3 here')).toBeVisible({ timeout: NETWORK_WAIT });
     await expect(timeUpSheet(ben).getByText('2 of 3 present have voted')).toBeVisible({ timeout: NETWORK_WAIT });
-    await expect(decision(host)).toHaveText(['Keep going for 30 more seconds', 'Or move on']);
+    await expect(decision(host)).toHaveText(['Move on', 'Keep going for 30 more seconds']);
+    await expect(timeUpSheet(host).getByText('Most votes say keep going')).toBeVisible();
     await timeUpSheet(host).getByRole('group', { name: 'More time' }).getByRole('button', { name: '10 s', exact: true }).click();
-    await decision(host).first().click();
+    await decision(host).nth(1).click();
     await Promise.all([host, ann, ben].map((page) =>
       expect(outcomeLine(page)).toHaveText('Keeping going for 10 more seconds', { timeout: NETWORK_WAIT })));
     await expect(timeUpSheet(ann)).toHaveCount(0, { timeout: NETWORK_WAIT });
     await expect(timeUpSheet(ann)).toBeVisible({ timeout: TIME_UP_WAIT });
     await timeUpSheet(ann).getByRole('button', { name: 'Move on', exact: true }).click();
-    await expect(decision(host)).toHaveText(['Move on', 'Or keep going for 10 more seconds'], { timeout: NETWORK_WAIT });
+    await expect(decision(host)).toHaveText(['Move on', 'Keep going for 10 more seconds'], { timeout: NETWORK_WAIT });
     await decision(host).first().click();
     await Promise.all([host, ann, ben].map((page) =>
-      expect(outcomeLine(page)).toHaveText('Moved on to the next topic', { timeout: NETWORK_WAIT })));
+      expect(outcomeLine(page)).toHaveText('Moved on · Next topic coming up', { timeout: NETWORK_WAIT })));
 
     // A second topic finished from the bar, then back to topics to collect more.
     await bar(host).getByRole('button', { name: /^Discuss #\d+$/ }).click();
@@ -159,7 +161,7 @@ test('a stranger on a 360 px phone starts a meeting, shares it by QR, and a seco
     expect((await qr.boundingBox())!.width).toBeGreaterThanOrEqual(240);
     expect(await noSideScroll(host)).toBe(true);
     await expectNoA11yViolations(host);
-    // Nothing here reads what the QR encodes; the second phone opens the copied link.
+    // What the QR encodes is decoded in src/ui/qr-decode.test.ts; here the second phone opens the copied link.
     await sheet.getByRole('button', { name: 'Copy link' }).click();
     const link = await host.evaluate(() => navigator.clipboard.readText());
     expect(link).toBe(host.url());

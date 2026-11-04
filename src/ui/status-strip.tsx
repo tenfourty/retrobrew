@@ -6,7 +6,7 @@ import { cx } from './cx';
 // onChip passes the chip, so focus returns to it when the sheet it opens closes. With `focusFallback` the strip's main
 // button is where focus lands when the chip has gone by then (the vote closed while its sheet was open).
 export function StatusStrip(props: {
-  label: string; focusFallback?: boolean; idleText?: string; number?: number; text?: string; end?: string; chip: boolean; up?: boolean;
+  label: string; focusFallback?: boolean; idleText?: string; number?: number; text?: string; end?: string; chip: boolean; chipLabel?: string; up?: boolean;
   onOpen: () => void; onChip: (opener: HTMLElement) => void;
 }) {
   return (
@@ -20,7 +20,7 @@ export function StatusStrip(props: {
           </>
         )}
       </button>
-      {props.chip ? <Button variant="secondary" size="sm" onClick={(e) => props.onChip(e.currentTarget)}>Vote</Button> : null}
+      {props.chip ? <Button variant="secondary" size="sm" onClick={(e) => props.onChip(e.currentTarget)}>{props.chipLabel ?? 'Vote'}</Button> : null}
     </div>
   );
 }

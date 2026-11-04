@@ -27,11 +27,11 @@ npm test         # unit and integration tests (Vitest)
 npm run build    # type-checks and builds static files into dist/
 ```
 
-`dist/` is a static site: serve it from any web server. `Dockerfile` and `deploy/` build an nginx image with the security headers the app expects. See [AGENTS.md](AGENTS.md) for every command, including the browser tests.
+`dist/` is a static site: serve it from any web server. `Dockerfile` and `deploy/` build an nginx image with the security headers the app expects. See [CONTRIBUTING.md](CONTRIBUTING.md) for every command, including the browser tests.
 
 ## Contribute
 
-Issues and pull requests are welcome. Read [AGENTS.md](AGENTS.md) first: it has the code map, the design rules and the testing conventions. In short:
+Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first: it has the code map, the design rules and the testing conventions. In short:
 
 - Behaviour is specified in `docs/product/`. Change the spec and the code together.
 - Write the failing test first.

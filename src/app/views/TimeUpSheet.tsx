@@ -5,7 +5,7 @@ import { Button } from '../../ui/components';
 import { Segmented } from '../../ui/segmented';
 import { Sheet } from '../../ui/sheet';
 import { TimeUpVote, type TimeUpChoice } from '../../ui/time-up-vote';
-import { decisionButtons, moveOnNote, turnoutLine, VOTE_HINT, VOTE_TITLE } from '../decision';
+import { DECISION_HEADING, decisionButtons, moveOnNote, NEW_TIMEBOX, recommendation, turnoutLine, VOTE_HEADING, VOTE_HINT, VOTE_TITLE } from '../decision';
 import { moreSentence, timeboxLabel } from '../lengths';
 import { EXTENSIONS, lastExtension, rememberExtension } from '../prefs';
 
@@ -27,7 +27,8 @@ export function TimeUpSheet(props: {
   if (!vote || !topic) return null;
   const minuteMs = props.view.timer?.minuteMs ?? REAL_MINUTE_MS;
   const totals = vote.totals ?? { extend: 0, none: 0, end: 0 };
-  const buttons = decisionButtons(totals, moreSentence(extension * minuteMs));
+  const buttons = decisionButtons(moreSentence(extension * minuteMs));
+  const leaning = recommendation(totals);
   const decide = (kind: 'extend' | 'end') => {
     if (kind === 'end') { props.onMoveOn(); return; }
     rememberExtension(extension);
@@ -37,7 +38,7 @@ export function TimeUpSheet(props: {
   return (
     <Sheet open={props.open} title={VOTE_TITLE} onClose={props.onClose} noClose returnFocusTo={props.opener}
       initialFocus={props.atDecision ? '.mtg-decision-primary' : undefined}>
-      <TimeUpVote topic={`#${topic.topicId} ${topic.text}`} choice={props.choice} voted={vote.voted} disabled={props.readOnly}
+      <TimeUpVote voteHeading={VOTE_HEADING} decisionHeading={props.facilitator ? DECISION_HEADING : undefined} topic={`#${topic.topicId} ${topic.text}`} choice={props.choice} voted={vote.voted} disabled={props.readOnly}
         onChoose={(choice) => {
           props.onVote(choice);
           // The tapped button locks while it has focus, which would drop focus to the page behind the modal.
@@ -47,14 +48,15 @@ export function TimeUpSheet(props: {
         turnout={props.facilitator || vote.voted ? turnoutLine(vote.turnout, props.facilitator) : undefined}>
         {props.facilitator ? (
           <>
+            {leaning ? <p className="mtg-leaning">{leaning}</p> : null}
             <Segmented label="More time" value={extension} onChange={setExtension}
               options={EXTENSIONS.map((m) => ({ value: m, label: timeboxLabel(m, minuteMs), disabled: props.readOnly }))} />
-            <div className="mtg-decision" role="group" aria-label="Decision">
+            <div className="mtg-decision">
               <Button className="mtg-decision-primary" disabled={props.readOnly} onClick={() => decide(buttons.primary.kind)}>{buttons.primary.label}</Button>
               <Button variant="ghost" disabled={props.readOnly} onClick={() => decide(buttons.secondary.kind)}>{buttons.secondary.label}</Button>
             </div>
             <p>{moveOnNote(topic.topicId)}</p>
-            <div><Button variant="ghost" size="sm" disabled={props.readOnly} onClick={props.onStartAgain}>Start again</Button></div>
+            <div><Button variant="ghost" size="sm" disabled={props.readOnly} onClick={props.onStartAgain}>{NEW_TIMEBOX}</Button></div>
           </>
         ) : null}
       </TimeUpVote>

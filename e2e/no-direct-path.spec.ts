@@ -16,7 +16,7 @@ test('a participant with no direct path takes part through the relays', { tag: '
     await joinMeeting(participant, url, name);
     await addTopic(participant, topic);
     await expect(topicCard(host, topic)).toBeVisible();
-    await topicCard(participant, topic).getByRole('button', { name: 'Vote', exact: true }).click();
+    await topicCard(participant, topic).getByRole('button', { name: /^Vote for / }).click();
     await expect(participant.getByText('2 votes left')).toBeVisible();
     await expect(topicCard(host, topic).getByRole('img', { name: /^1 vote/ })).toBeVisible();
 

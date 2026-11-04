@@ -33,8 +33,8 @@ const HOST: Case[] = [
   { force: { connection: 'noRelays' }, text: "Can't reach the meeting network. Check your connection.", tone: 'warning', themes: true },
   { force: { saveFailed: true }, text: "This device couldn't save the meeting. Keep this page open and back up the meeting file.", action: 'Back up', tone: 'error', themes: true },
   {
-    force: { persistenceRefused: true },
-    text: "This browser hasn't promised to keep this meeting. Back up the meeting file when you finish, and don't use a private window.",
+    force: { storageNotice: true },
+    text: 'Make a backup now and then: this browser may clear saved meetings when space runs low',
     action: 'Dismiss', tone: 'info', themes: true,
   },
   {
@@ -89,8 +89,8 @@ test('the facilitator sees each banner with its action, readable in every tone',
   try {
     for (const c of HOST) {
       const page = await context.newPage();
-      // Headless Chromium may refuse to persist storage; only the persistence case shows that banner.
-      await forceSignals(page, { host: { persistenceRefused: false, ...c.force } });
+      // The storage notice shows on every meeting; only its own case keeps it, so the others show their own banner.
+      await forceSignals(page, { host: { storageNotice: false, ...c.force } });
       await hostMeeting(page, 'Hana', 'Banner check');
       await expectBanner(page, c);
       if (c.action === 'Back up') {

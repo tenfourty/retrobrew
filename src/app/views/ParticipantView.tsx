@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { MESSAGES } from '../../engine/messages';
-import type { ShareLink } from '../../link';
+import { buildShareLink, type ShareLink } from '../../link';
 import type { Outcome } from '../../session/outcome';
 import type { BoardStore } from '../../store/board-store';
 import { Banner } from '../../ui/banner';
 import { Button } from '../../ui/components';
 import { Announcer, useAnnounce } from '../announcer';
 import { ACTION_LABEL, bannerTone, participantSignals } from '../banner-choice';
-import { COPY, connectingCopy, OUTCOME_MS, participantBanner, type Banner as BannerData, type BannerAction } from '../banners';
-import { getDeviceSigner } from '../identity';
-import { forgetJoined, joinedName, joinRefusalText, rememberJoined } from '../joined';
+import { COPY, connectingCopy, outcomeMs, participantBanner, type Banner as BannerData, type BannerAction } from '../banners';
+import { getDeviceSigner, rememberName } from '../identity';
+import { forgetJoined, joinedName, joinRefusalText, joiningTitle, rememberJoined } from '../joined';
 import { startParticipating, type ParticipantHandle } from '../participant-controller';
 import { unlockAudio } from '../sounds';
+import { viewWhileHostAway } from '../host-away';
 import { StartCancelled } from '../startup';
 import { forced } from '../test-hooks';
 import { NAME_HINT } from './Home';
@@ -91,7 +92,7 @@ function ParticipantBody({ link, store }: { link: ShareLink; store: BoardStore }
         onStatus: rerender,
         onOutcome: (next) => {
           setOutcome(next);
-          setTimeout(() => setOutcome((shown) => (shown === next ? null : shown)), OUTCOME_MS);
+          setTimeout(() => setOutcome((shown) => (shown === next ? null : shown)), outcomeMs(next));
         },
       }, controller.signal);
       // The view may have gone between start-up finishing and this line running: close the session, don't keep it.
@@ -135,7 +136,13 @@ function ParticipantBody({ link, store }: { link: ShareLink; store: BoardStore }
   const onStateAction = (action: BannerAction) => { if (action === 'retry') session?.retry(); else location.reload(); };
   // Joined: the device remembers it, so coming back skips the form.
   const me = session?.isAttendee && session.you ? session.state?.attendees[session.you] : undefined;
-  useEffect(() => { if (me) rememberJoined(link, me.name); }, [me?.name]);
+  const boardName = session?.state?.boardName;
+  useEffect(() => {
+    if (!me) return;
+    rememberJoined(link, me.name);
+    // "Your meetings" lists it too: the name, the link the person was given and the name they joined under.
+    if (boardName) void store.putJoined({ boardId: link.boardId, boardName, link: buildShareLink(location.href, link), name: me.name, joinedAt: Date.now() }).catch(() => undefined);
+  }, [me?.name, boardName]);
   // A silent rejoin that the host refuses forgets the stored name, so the form's name sticks once it is entered again.
   const wasRemembered = useRef(remembered !== null);
   useEffect(() => {
@@ -200,10 +207,12 @@ function ParticipantBody({ link, store }: { link: ShareLink; store: BoardStore }
     const copy = connectingCopy(session ? Date.now() - session.connectingSince : 0);
     // The connecting panel already says the facilitator can't be reached, so that banner would say it twice.
     const before = banner && banner.text !== COPY.hostOffline ? banner : null;
+    const title = joiningTitle(session?.state?.boardName);
     return (
       <StatePage>
         {before ? <StateBanner banner={before} onAction={onStateAction} /> : null}
         <StatePanel>
+          {title ? <h1 className="app-panel-title">{title}</h1> : null}
           {copy.lines.map((line) => <p key={line}>{line}</p>)}
           {copy.retry && session ? <div><Button variant="secondary" onClick={() => { actedOnControl.current = true; session.retry(); }}>Retry</Button></div> : null}
         </StatePanel>
@@ -212,13 +221,16 @@ function ParticipantBody({ link, store }: { link: ShareLink; store: BoardStore }
   }
   // While the host is offline, or the versions don't match, the board stays visible and read-only.
   const readOnly = !session.hostOnline || session.mismatch !== null;
+  // Only the facilitator's device knows who is present: while it is away the head count holds this guest alone.
+  const view = session.hostOnline ? session.state : viewWhileHostAway(session.state, session.you);
   return (
     <>
-      <MeetingScreen view={session.state} you={session.you} hostNow={() => session.clock.hostNow(Date.now())}
+      <MeetingScreen view={view} hostAway={!session.hostOnline} you={session.you} hostNow={() => session.clock.hostNow(Date.now())}
         send={(cmd, place) => {
           setRefusal(null);
           void session.sendSeq(cmd).then((seq) => { if (seq !== null) places.current.set(seq, place); });
         }} refusal={refusal} readOnly={readOnly} outcome={outcome}
+        onRename={(name) => { session.takePart(name); void rememberName(store, name); rerender(); }}
         banner={banner ?? null} onBannerAction={onStateAction} />
     </>
   );

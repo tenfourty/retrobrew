@@ -30,6 +30,13 @@ test('the share step opens after creating, with a QR code and Copy link', async 
     await expect(sheet.getByText('Scan to join, or share the link')).toBeVisible();
     await expect(sheet.getByText('Anyone with this link can join and read the meeting. Share it only with the people taking part.')).toBeVisible();
     await expect(sheet.getByRole('button', { name: 'Share link' })).toHaveCount(0);
+    // The link itself is shown as selectable text, beside Copy and the QR code, without moving initial focus off the buttons.
+    const link = sheet.getByRole('textbox', { name: 'Meeting link' });
+    await expect(link).toHaveValue(page.url());
+    await expect(link).toHaveAttribute('readonly', '');
+    await expect(sheet.getByRole('button', { name: 'Copy link' })).toBeFocused();
+    await link.click();
+    expect(await link.evaluate((el: HTMLTextAreaElement) => [el.selectionStart, el.selectionEnd])).toEqual([0, page.url().length]);
     await expectNoA11yViolations(page);
 
     const copy = sheet.getByRole('button', { name: 'Copy link' });
@@ -81,11 +88,13 @@ test('a refused clipboard shows the link, selected, to copy by hand', async ({ b
     const page = await context.newPage();
     await createMeeting(page, 'Host');
     const sheet = page.getByRole('dialog', { name: 'Invite people' });
-    await sheet.getByRole('button', { name: 'Copy link' }).click();
-    const field = sheet.getByRole('textbox', { name: 'Copy the link from here' });
+    const field = sheet.getByRole('textbox', { name: 'Meeting link' });
+    // The link is on show before anything is copied, wrapped inside the phone's width.
     await expect(field).toHaveValue(page.url());
+    expect(await field.evaluate((el: HTMLTextAreaElement) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    await sheet.getByRole('button', { name: 'Copy link' }).click();
     await expect(field).toBeFocused();
-    expect(await field.evaluate((el: HTMLInputElement) => [el.selectionStart, el.selectionEnd])).toEqual([0, page.url().length]);
+    expect(await field.evaluate((el: HTMLTextAreaElement) => [el.selectionStart, el.selectionEnd])).toEqual([0, page.url().length]);
     const qr = await sheet.getByRole('img', { name: 'QR code for the meeting link' }).boundingBox();
     expect(qr!.width).toBeGreaterThanOrEqual(240);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

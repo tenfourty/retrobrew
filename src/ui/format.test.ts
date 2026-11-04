@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { capAtCaret, capTopic, charactersLeftText, formatClock, topicLength } from './format';
+import { capAtCaret, capTopic, charactersLeftText, formatClock, overTopicLimit, topicLength } from './format';
 
 describe('formatClock', () => {
   it('writes m:ss in both modes', () => {
@@ -63,5 +63,16 @@ describe('capAtCaret', () => {
   });
   it('leaves a short edit alone', () => {
     expect(capAtCaret('ab', 'a😀b', 3)).toEqual({ text: 'a😀b', caret: 3 });
+  });
+});
+
+describe('overTopicLimit', () => {
+  it('is true only when typed or pasted text is longer than a topic can be', () => {
+    expect(overTopicLimit('a'.repeat(280))).toBe(false);
+    expect(overTopicLimit('a'.repeat(281))).toBe(true);
+  });
+  it('counts code points, and a line break as one space', () => {
+    expect(overTopicLimit('😀'.repeat(280))).toBe(false);
+    expect(overTopicLimit(`${'a'.repeat(278)}\r\nb`)).toBe(false);
   });
 });

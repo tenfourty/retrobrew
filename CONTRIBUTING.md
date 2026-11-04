@@ -2,7 +2,7 @@
 
 Retrobrew is a free, browser-only Lean Coffee board. The facilitator's browser tab is the host and keeps the board in IndexedDB. Participants join from their own devices through a share link and sync with the host over WebRTC (Trystero), with end-to-end-encrypted Nostr relay events as the fallback. There is no server, no account and no backend.
 
-This file is the contributor guide, for people and for coding agents.
+This file is the contributor guide.
 
 ## Read first
 
