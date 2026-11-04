@@ -1,18 +1,23 @@
 name: e2e
 
 # The Playwright browser battery (project `local`, then `local-restart`) on every push to main and to `ci/e2e*`
-# branches, with the unit tests, the build and the asset check first, so a `ci/e2e*` branch proves all of them before
+# branches and on pull requests into main, with the unit tests, the build and the asset check first, so a `ci/e2e*` branch proves all of them before
 # it merges. It reports red or green and gates nothing. It can also be run by hand on any ref.
 
 on:
   push:
     branches: [main, "ci/e2e*"]
+  # Pull requests into main, from forks too. `pull_request`, never `pull_request_target`: a fork's run gets a read-only
+  # token and no secrets, and this workflow needs none.
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# A newer push to a branch cancels that branch's older run; a run on main is never cancelled, so every main commit
+# A newer push to a branch, or to a pull request, cancels that ref's older run (a pull request's ref is its own, so
+# runs of different pull requests never cancel each other); a run on main is never cancelled, so every main commit
 # reports red or green.
 concurrency:
   group: retrobrew-e2e-${{ github.ref }}
