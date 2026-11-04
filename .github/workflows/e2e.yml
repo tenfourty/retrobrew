@@ -1,16 +1,16 @@
 name: e2e
 
-# The Playwright browser battery (project `local`, then `local-restart`) as its own job on every push to main. It
-# reports red or green and does not gate site.yml's image job or the deploy. To make it gate, move this job into
-# site.yml with `needs: e2e` on `image`. It is a separate file so pushes to ci/e2e* branches, which prove changes to
-# this job before they merge, never run the image job that pushes an image and opens a pin PR.
-# The shape of the dind service is copied from site.yml.
+# The Playwright browser battery (project `local`, then `local-restart`) on every push to main and to `ci/e2e*`
+# branches, with the unit tests, the build and the asset check first, so a `ci/e2e*` branch proves all of them before
+# it merges. It reports red or green and gates nothing. It can also be run by hand on any ref.
 
-# Quoted "on": YAML 1.1 tools read the bare word as the boolean true.
-"on":
+on:
   push:
     branches: [main, "ci/e2e*"]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 # A newer push to a branch cancels that branch's older run; a run on main is never cancelled, so every main commit
 # reports red or green.
@@ -24,42 +24,36 @@ defaults:
 
 jobs:
   e2e:
-    runs-on: docker
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
     # Playwright 1.59.1 with its browsers and system libraries, pinned by digest (the v1.59.1-noble tag).
     container:
       image: mcr.microsoft.com/playwright@sha256:b0ab6f3cb99aa7803adbc14d9027ec1785fc6e433b97e134e0f8fe61683b6b53
       # /tmp on tmpfs: Playwright launches Chromium with --disable-dev-shm-usage, so Chromium keeps its shared
-      # memory in /tmp. On the runner's disk, freeing it waited on writeback and froze renderers for 3.5 to 5 s
-      # when the disk was busy, failing the burst test.
-      options: --ipc=host --tmpfs /tmp:rw,exec,size=4g
-    services:
-      dind:
-        image: docker:28-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac
-        options: --privileged
-        env:
-          DOCKER_TLS_CERTDIR: ""
+      # memory in /tmp, and a busy disk can freeze renderers for seconds. The runner's Docker socket is mounted so
+      # the job can start the relay and the restart test can restart it; host.docker.internal reaches its published port.
+      options: --ipc=host --tmpfs /tmp:rw,exec,size=4g --add-host=host.docker.internal:host-gateway
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
     env:
       CI: "true"
-      DOCKER_HOST: tcp://dind:2375
-      # The relay runs in the dind; global setup forwards 127.0.0.1:17777 and [::1]:17777 to it.
-      E2E_RELAY_UPSTREAM: dind:17777
+      # The relay runs on the runner's Docker daemon; global setup forwards 127.0.0.1:17777 and [::1]:17777 to it.
+      E2E_RELAY_UPSTREAM: host.docker.internal:17777
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      # The job container has no docker CLI of its own, only the dind service.
+      # The job container has no docker CLI of its own; it talks to the runner's Docker daemon through the mounted socket.
       - name: docker cli
         run: |
           curl -fsSL -o /tmp/docker.tgz https://download.docker.com/linux/static/stable/x86_64/docker-28.3.3.tgz
           echo "40c16bcf324f354b382d07e845e6a79e3493fc0c09b252dff9e1a46125589bff  /tmp/docker.tgz" | sha256sum -c -
           tar xzf /tmp/docker.tgz -C /tmp
           install /tmp/docker/docker /usr/local/bin/docker
-          for i in $(seq 1 30); do docker info >/dev/null 2>&1 && break; sleep 2; done
           docker info >/dev/null
 
-      # The same nostr-rs-relay image and config as the podman relay of a developer machine
-      # (e2e/relay/settings.ts), published on the dind's port 17777.
+      # The same nostr-rs-relay image and config as the podman relay of a developer machine (e2e/relay/settings.ts),
+      # published on the runner's port 17777. It is a container the job starts itself, not a `services:` entry, because
+      # the config file comes from the checkout and the restart test needs the fixed container name.
       - name: relay
         run: |
           set -euo pipefail
@@ -72,7 +66,6 @@ jobs:
       - name: install
         run: npm ci
 
-      # The image job runs these too, but only on main: here they also prove a ci/e2e* branch before it merges.
       - name: unit tests
         run: npm test
 
@@ -85,7 +78,7 @@ jobs:
       # Only a failed run keeps them: the traces (retain-on-failure) and the HTML report, for a flake that does not recur on demand.
       - name: upload traces
         if: failure()
-        uses: actions/upload-artifact@ff15f0306b3f739f7b6fd43fb5d26cd321bd4de5 # v3
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: e2e-failure
           path: |

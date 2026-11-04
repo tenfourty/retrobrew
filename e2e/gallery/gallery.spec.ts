@@ -9,7 +9,7 @@ import {
 // The screenshot gallery for design review:
 // every screen at phone and desktop widths in all four themes. Run with `npm run gallery`; the pictures and an
 // index.html land in gallery/ (GALLERY_DIR to change it), which git ignores. In CI it runs from
-// .forgejo/workflows/gallery.yml and the folder is uploaded as an artifact.
+// .github/workflows/gallery.yml and the folder is uploaded as an artifact.
 const DIR = process.env.GALLERY_DIR ?? 'gallery';
 const WIDTHS = { phone: { width: 360, height: 780 }, desktop: { width: 1280, height: 860 } };
 type Width = keyof typeof WIDTHS;

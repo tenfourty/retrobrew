@@ -5,8 +5,8 @@ import { RELAY_CONTAINER } from './settings';
 
 // Restarts the local relay as a server-side restart does: every socket drops at once.
 // - Locally the relay is a rootless podman container.
-// - With E2E_RELAY_UPSTREAM (CI) it is a container of the same name in the docker-in-docker service, and the job's
-//   docker CLI (DOCKER_HOST) restarts it; the TCP forward on 127.0.0.1:17777 connects afresh for each socket.
+// - With E2E_RELAY_UPSTREAM (CI) it is a container of the same name that the job started on the runner's Docker daemon,
+//   and the job's docker CLI (through the mounted socket) restarts it; the TCP forward on 127.0.0.1:17777 connects afresh for each socket.
 // Anything else that goes wrong throws, naming the mode: a restart that silently did nothing would make the test pass for the wrong reason.
 export function restartRelay(): void {
   const external = externalRelayUpstream() !== undefined;

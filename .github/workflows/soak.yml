@@ -1,13 +1,12 @@
 name: soak
 
-# The 50-minute soak (project `soak`, e2e/soak/) on demand, in CI, so it never needs a developer machine. It
-# never runs on main and has no schedule. Start it with workflow_dispatch (input `minutes`; empty means the full 50
-# minutes) or by pushing a `ci/soak*` branch. A push runs a short check of the test, 3 minutes, unless the branch name
-# ends in `-full` (full run) or `-<n>m` (n minutes), e.g. `ci/soak-check-10m`. The job is e2e.yml's (same pinned
-# Playwright image, /tmp on tmpfs, relay in a docker-in-docker service), with a timeout above the full run's 70. No build step (the project's web server builds).
+# The 50-minute soak (project `soak`, e2e/soak/) on demand, so it never needs a developer machine. It never runs on
+# main and has no schedule. Start it with workflow_dispatch (input `minutes`; empty means the full 50 minutes) or by
+# pushing a `ci/soak*` branch. A push runs a short check of the test, 3 minutes, unless the branch name ends in
+# `-full` (full run) or `-<n>m` (n minutes), e.g. `ci/soak-check-10m`. The job is e2e.yml's, with a timeout above the
+# longest run (70 minutes). No build step: the project's web server builds.
 
-# Quoted "on": YAML 1.1 tools read the bare word as the boolean true.
-"on":
+on:
   push:
     branches: ["ci/soak*"]
   workflow_dispatch:
@@ -16,6 +15,9 @@ name: soak
         description: "Soak length in minutes (empty: the full 50)"
         required: false
         default: ""
+
+permissions:
+  contents: read
 
 # A newer push to a ci/soak* branch cancels that branch's older run; a dispatch is never cancelled (each has its own
 # group), nor does it cancel anything.
@@ -29,24 +31,23 @@ defaults:
 
 jobs:
   soak:
-    runs-on: docker
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    # Playwright 1.59.1 with its browsers and system libraries, pinned by digest (the v1.59.1-noble tag).
     container:
       image: mcr.microsoft.com/playwright@sha256:b0ab6f3cb99aa7803adbc14d9027ec1785fc6e433b97e134e0f8fe61683b6b53
-      options: --ipc=host --tmpfs /tmp:rw,exec,size=4g
-    services:
-      dind:
-        image: docker:28-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac
-        options: --privileged
-        env:
-          DOCKER_TLS_CERTDIR: ""
+      # /tmp on tmpfs: Playwright launches Chromium with --disable-dev-shm-usage, so Chromium keeps its shared
+      # memory in /tmp, and a busy disk can freeze renderers for seconds. The runner's Docker socket is mounted so
+      # the job can start the relay and the restart test can restart it; host.docker.internal reaches its published port.
+      options: --ipc=host --tmpfs /tmp:rw,exec,size=4g --add-host=host.docker.internal:host-gateway
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
     env:
       CI: "true"
-      DOCKER_HOST: tcp://dind:2375
-      E2E_RELAY_UPSTREAM: dind:17777
+      # The relay runs on the runner's Docker daemon; global setup forwards 127.0.0.1:17777 and [::1]:17777 to it.
+      E2E_RELAY_UPSTREAM: host.docker.internal:17777
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # Empty means the full run. Branch names are passed through the environment, never interpolated into the script.
       - name: length
@@ -71,15 +72,18 @@ jobs:
           echo "E2E_SOAK_MINUTES=$minutes" >> "$GITHUB_ENV"
           echo "soak length: ${minutes:-50 (full)} minutes"
 
+      # The job container has no docker CLI of its own; it talks to the runner's Docker daemon through the mounted socket.
       - name: docker cli
         run: |
           curl -fsSL -o /tmp/docker.tgz https://download.docker.com/linux/static/stable/x86_64/docker-28.3.3.tgz
           echo "40c16bcf324f354b382d07e845e6a79e3493fc0c09b252dff9e1a46125589bff  /tmp/docker.tgz" | sha256sum -c -
           tar xzf /tmp/docker.tgz -C /tmp
           install /tmp/docker/docker /usr/local/bin/docker
-          for i in $(seq 1 30); do docker info >/dev/null 2>&1 && break; sleep 2; done
           docker info >/dev/null
 
+      # The same nostr-rs-relay image and config as the podman relay of a developer machine (e2e/relay/settings.ts),
+      # published on the runner's port 17777. It is a container the job starts itself, not a `services:` entry, because
+      # the config file comes from the checkout and the restart test needs the fixed container name.
       - name: relay
         run: |
           set -euo pipefail
