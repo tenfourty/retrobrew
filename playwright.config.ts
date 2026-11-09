@@ -37,7 +37,10 @@ export default defineConfig({
   },
   projects: RELAYS === 'local'
     ? [
-        { name: 'local', testIgnore: ['soak/**', 'restart/**', 'gallery/**'], use: chrome },
+        { name: 'local', testIgnore: ['soak/**', 'restart/**', 'gallery/**', 'feedback-stub.spec.ts'], use: chrome },
+        // After `local`, on its own: this spec resets the feedback stub and forces its modes, and the stub is one state
+        // shared by every worker, so beside feedback-sheet.spec.ts it wipes that spec's reports.
+        { name: 'feedback-stub', testMatch: 'feedback-stub.spec.ts', dependencies: ['local'], use: chrome },
         // After the rest, on its own: these tests restart the shared local relay.
         { name: 'local-restart', testDir: 'e2e/restart', dependencies: ['local'], use: chrome },
         // On demand only: npm run test:soak sets E2E_SOAK=1. The 50-minute soak test goes in e2e/soak/.

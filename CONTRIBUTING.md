@@ -24,10 +24,12 @@ This file is the contributor guide.
 | `src/transport/` | WebRTC (Trystero), Nostr relay and the hybrid of both |
 | `src/crypto/` | Signing, sealing and hashing (WebCrypto) |
 | `src/store/` | IndexedDB board store, export and import |
+| `src/feedback/` | The feedback report (pages place it through `src/app/feedback.tsx`, only in a build with `FEEDBACK_ORIGIN`): schema and validator shared with the endpoint, typed inputs, error capture, the trouble latch and the send request. Imports nothing from the board; see `docs/product/feedback.md` |
 | `src/clock/` | The host's monotonic clock |
 | `src/app/` | Controllers, banners, start-up, and the Preact views (`src/app/views/`) |
 | `src/ui/` | Shared UI components, formatting and the mode switch |
 | `index.html`, `lean-coffee/`, `src/site/` | The hand-written landing page and guide, and their stylesheet (no app code) |
+| `feedback/` | The feedback endpoint service (Node 22, no dependencies, types stripped at run time): validation with `src/feedback/schema.ts`, limits, sealing, the inbox, the internal pull route, sweep and eviction, logging, its tests and its `Dockerfile`. Not in `dist/`; see `docs/product/feedback.md` |
 | `src/config.ts` | The only Nostr relays and STUN servers the product may contact |
 | `e2e/` | Playwright browser battery and its helpers |
 | `deploy/`, `Dockerfile` | The static site image: nginx config and security headers |
@@ -35,7 +37,7 @@ This file is the contributor guide.
 ## Design rules
 
 - **No third-party requests** except the relays and STUN servers in `src/config.ts`. `npm run check:assets` enforces it on every build.
-- **No server, no accounts, no cloud service.**
+- **No server, no accounts, no cloud service.** The one exception is the feedback endpoint (`feedback/`): it takes feedback only, never a board, and nothing in `src/` may depend on it for a meeting to work. It makes no outbound request and stores no IP address.
 - **The facilitator's tab is the authority:** participants send commands; the host validates them and broadcasts signed, sealed state. The host's clock is the source of truth for timers.
 - **Follow the product docs' rules:** columns `ideas` → `toDiscuss` → `discussing` → `discussed`, one topic in Discussing at a time, timeboxes of 1, 2, 3, 4, 5, 10, 15, 20 and 30 minutes, extensions of 1 to 5 minutes, merged topics summing their votes, fractional `position`.
 - **Protocol changes are versioned.** A wire change goes through `src/protocol/version.ts` and `docs/product/sync-protocol.md` together.
@@ -45,7 +47,7 @@ This file is the contributor guide.
 
 - Node 22 or later; `npm install`. Linux or macOS (on Windows, WSL).
 - Rootless podman for the browser battery's local Nostr relay (not needed with `E2E_RELAY_UPSTREAM`, see below). Docker isn't needed.
-- If Chromium is missing: `npx playwright install chromium`.
+- If Chromium is missing: `npx playwright install chromium`. On Fedora and other non-apt systems `npx playwright install-deps` doesn't work: install Chromium's libraries (nss, nspr and the rest) with the system package manager.
 - Run every command from the repository root.
 
 ## Commands
@@ -55,9 +57,9 @@ This file is the contributor guide.
 | `npm run dev` | Serves `/` (landing), `/lean-coffee/` (guide) and `/app/` at http://localhost:5173/ |
 | `npm test` | Unit and integration tests (Vitest) |
 | `npm run build` | Type-checks and builds `dist/`, including `/version.txt` |
-| `npm run check:assets` | Fails if the build loads anything from a third-party host, lacks `/version.txt`, or carries a browser-battery hook (`__rbRelayHealth`, `__rbDirectPeers`, `rb-e2e-force`, the forced start-failure message) |
+| `npm run check:assets` | Fails if the build loads anything from a third-party host, lacks `/version.txt`, or carries a browser-battery hook (`__rbRelayHealth`, `__rbDirectPeers`, `rb-e2e-force`, the forced start-failure message, `rb-e2e-feedback`, `__rbFeedbackLog`, the feedback stub's `/__feedback` routes), or, when `FEEDBACK_ORIGIN` is unset, if the scripts still carry the feedback feature (the `"/feedback"` send path or "Send feedback"), or if a public page calls `fetch(` or names `/feedback` |
 | `RETROBREW_LAUNCH=1 npm run check:assets` | Also fails on the bare `https://github.com/` source and licence links |
-| `npm run test:e2e` | The Playwright battery (projects `local`, then `local-restart`, which restarts the relay), a few minutes |
+| `npm run test:e2e` | The Playwright battery (projects `local`, then `feedback-stub` (the stub is one state shared by every worker, so its spec runs apart from `feedback-sheet.spec.ts`) and `local-restart`, which restarts the relay), a few minutes |
 | `npm run test:e2e:public` | Tests tagged `@public`, against the real public relays (needs network). `E2E_BASE_URL` targets a deployment; `E2E_APP_PATH` if the app is not at `/app/` |
 | `npm run test:soak` | The soak test (`e2e/soak/`), on demand: a facilitator and five participants in a rehearsal meeting for 50 minutes, checking that every board agrees after each cycle and that heap, open sockets and wake lock calls stay flat. `E2E_SOAK_MINUTES=3` shortens it (1 to 70) |
 | `npm run gallery` | The gallery project (`e2e/gallery/`), on demand: every meeting screen at phone (360 px) and desktop (1280 px) widths in all four themes, into `gallery/` (git-ignored; `GALLERY_DIR` changes the folder) with an `index.html` to browse them |
@@ -66,6 +68,8 @@ This file is the contributor guide.
 - `test:e2e` builds into `dist-e2e/` with `vite build --mode e2e`, serves it on http://localhost:4180/, and starts a local nostr-rs-relay with podman (pinned in `e2e/relay/settings.ts`) on 127.0.0.1:17777, with a rate-limited relay in front on 127.0.0.1:17778.
 - With `E2E_RELAY_UPSTREAM=host:port` global setup starts no podman container: it forwards 127.0.0.1:17777 and [::1]:17777 to that relay, still checks its NIP-11 name and still starts the rate-limited proxy. Leave it unset on a developer machine.
 - One `test:e2e` run per machine: a lock file makes a second run stop at once, naming the first. A crashed run's lock and container are replaced automatically.
+- The feedback endpoint service (`feedback/`) is tested by `npm test` like the rest (Vitest includes `feedback/**/*.test.ts`): real servers on loopback ports, a fake clock, a temporary inbox, no outside network. Its `main.test.ts` starts `node feedback/main.ts` as the image does, so the service and `src/feedback/schema.ts` must use only syntax Node can strip (no enums, namespaces or constructor parameter properties). To run it by hand: set `FEEDBACK_SEAL_KID`, `FEEDBACK_SEAL_PUBLIC_KEY` and `FEEDBACK_PULL_TOKEN_SHA256` (see `feedback/config.ts`) and run `node feedback/main.ts`.
+- The feedback endpoint has a stand-in for dev and the battery: `scripts/feedback-stub.mjs` checks bodies with the real `src/feedback/schema.ts` validator and answers `202`. `vite.config.ts` mounts it on `npm run dev` and on the `--mode e2e` preview only, with test routes `GET /__feedback` (bodies received), `POST /__feedback/mode` (`accept`, `fail`, `slow`, `ratelimit`) and `DELETE /__feedback` (reset); `feedbackStub(request)` in `e2e/helpers.ts` wraps them. `FEEDBACK_ORIGIN` is `https://retrobrew.app` or unset (anything else stops the build) and becomes `__RB_FEEDBACK_ORIGIN__` (`src/build/feedback-flag.ts`): empty compiles the feature out (every entry tests the `FEEDBACK_BUILT` constant in `src/app/feedback-gate.ts`), `self` in dev and e2e means the stub. The browser battery steers the feature through the tab's `rb-e2e-feedback` setting (e2e builds only; `src/app/feedback-hooks.ts`).
 - `VITE_RELAYS` (comma-separated `ws://` or `wss://` URLs) replaces the relays in `--mode e2e` builds only; `check:assets` fails if any other build contains a localhost relay.
 - GitHub Actions (`.github/workflows/`) run in CI: `e2e.yml` runs the unit tests, the build, `check:assets` and the browser battery on every push to `main` and to `ci/e2e*` branches, and on every pull request into `main` (read-only token, no secrets; a first-time or outside contributor's run waits for a maintainer's approval; a branch in this repository with an open pull request runs twice, once for the push and once for the pull request; a newer push to a pull request cancels its older run; a failed run uploads the artifact `e2e-failure`, kept 5 days); `soak.yml` and `gallery.yml` run on demand only, by manual dispatch or a push to a `ci/soak*` or `ci/gallery*` branch (a soak push runs 3 minutes unless the branch name ends in `-full` or `-<n>m`; the dispatch input `minutes` takes 1 to 70). All three use the pinned Playwright image on a GitHub-hosted runner and start the relay as a container named `retrobrew-e2e-relay` from the checkout's `e2e/relay/` files. They need no secrets. `.forgejo/workflows/site.yml` builds the site image and is the only workflow left in `.forgejo/`; everything specific to one installation is a CI variable (`vars.*`) listed in its header.
 - IMPORTANT: never point a test runner's root or discovery directory outside the repo (no `vitest --root /` or `--root ~`): it walks the whole filesystem. Put scratch tests inside the repo.
@@ -82,9 +86,10 @@ This file is the contributor guide.
   - `freezePage` / `resumePage` simulate a phone locking and unlocking; `blockRelay` / `unblockRelay` cut a relay; `useRateLimitedRelay(context, ip?)` routes through the rate-limited relay;
   - `expectNoA11yViolations(page)` fails on serious or critical axe violations;
   - `forceSignals(page, forced)` forces banner signals or the facilitator's starting and failed states (`--mode e2e` builds only, behind `import.meta.env.MODE === 'e2e'`; `check:assets` fails any other build that carries the hooks);
-  - `banner(page, text)` is the visible banner holding some text; use it, not `getByText`, because the page's live region repeats banner text;
+  - `banner(page, text)` is the visible banner holding some text; use it, not `getByText`, because the page's live region repeats banner text (it holds the words for 8 s, then is emptied, and a banner that clears may leave a recovery line such as "The facilitator is back.");
   - `addTopic`, `discussTopic`, `timeUpSheet`, `outcomeLine`, `openPeople` and `connectionLine` drive the board;
   - for failure output: `recordWsFrames(page)` then `describeSends` / `countSends`, and `relayHealthOf(page)`.
+- `src/copy-rules.test.ts` lints the design system's copy and colour rules on every `npm test`: no exclamation mark, no "card", no emoji and no US spelling in the strings and JSX text of `src/app`, `src/ui` and `src/session`, the engine's refusal copy and the hand-written pages; no hex, `rgb()`/`hsl()` or named colour in `src/ui/*.css` and `src/site/*.css`, nor on the `fill`, `stroke`, `stop-color` and `color` attributes of TSX. A deliberate exception goes in the file's `ALLOWED` list with its reason; the last test fails on an entry nothing uses.
 - Session tests (`src/session/`) step a `FakeScheduler` and use `settle()` from `src/test/settle.ts`, which waits for in-flight WebCrypto and compression, between steps; never a real `sleep()`. Run a file with `RETROBREW_SLOW_CRYPTO=20` (a random real delay of up to 20 ms on each WebCrypto call) to expose a test that still guesses how long work takes. Vitest's default timeout is 30 s (a CI machine can be 2 to 3 times slower than a developer machine); a test that needs more sets its own.
 
 ## Conventions

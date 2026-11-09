@@ -71,7 +71,34 @@ jobs:
 
       # The Dockerfile's build stage runs npm test, npm run build and npm run check:assets,
       # so a failing test or a third-party asset host fails the image.
-      - name: build and push
+      - name: build
+        env:
+          REGISTRY_HOST: "${{ vars.REGISTRY_HOST }}"
+          IMAGE_NAME: "${{ vars.IMAGE_NAME }}"
+        run: |
+          set -eu
+          sha12="${GITHUB_SHA:0:12}"
+          docker build --network host --build-arg REVISION="$GITHUB_SHA" -t "${REGISTRY_HOST}/${IMAGE_NAME}:${sha12}" .
+
+      # Runs the built image on the dind and checks its nginx from the job (scripts/smoke-site.sh:
+      # redirects, security headers, the 404 page, the favicon, /version.txt). A mismatch fails the
+      # job before the push step, so a broken image is never published. The published port is on
+      # the dind, which the job reaches as `dind`.
+      - name: smoke test the image
+        env:
+          REGISTRY_HOST: "${{ vars.REGISTRY_HOST }}"
+          IMAGE_NAME: "${{ vars.IMAGE_NAME }}"
+        run: |
+          set -eu
+          sha12="${GITHUB_SHA:0:12}"
+          docker rm -f retrobrew-smoke >/dev/null 2>&1 || true
+          docker run -d --name retrobrew-smoke -p 18080:8080 "${REGISTRY_HOST}/${IMAGE_NAME}:${sha12}"
+          trap 'rc=$?; [ "$rc" -eq 0 ] || docker logs retrobrew-smoke || true; docker rm -f retrobrew-smoke >/dev/null 2>&1 || true' EXIT
+          for i in $(seq 1 30); do curl -fsS -o /dev/null http://dind:18080/healthz 2>/dev/null && break; sleep 1; done
+          curl -fsS -o /dev/null http://dind:18080/healthz
+          sh scripts/smoke-site.sh http://dind:18080 --revision "$GITHUB_SHA"
+
+      - name: push
         id: build
         env:
           REGISTRY_PASSWORD: "${{ secrets.REGISTRY_PUSH_TOKEN }}"
@@ -89,7 +116,6 @@ jobs:
 
           printf '%s' "$REGISTRY_PASSWORD" | docker login "$REGISTRY_HOST" -u "$REGISTRY_USER" --password-stdin
 
-          docker build --network host --build-arg REVISION="$GITHUB_SHA" -t "$image" .
           docker push "$image"
           digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$image")
           echo "PUBLISHED image=${image} digest=${digest#*@}"

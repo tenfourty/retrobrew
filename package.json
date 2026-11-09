@@ -11,7 +11,7 @@
     "test": "vitest run --passWithNoTests",
     "check:assets": "node scripts/check-no-third-party.mjs dist",
     "check:e2e": "tsc -p tsconfig.e2e.json",
-    "test:e2e": "playwright test --project=local --project=local-restart",
+    "test:e2e": "playwright test --project=local --project=feedback-stub --project=local-restart",
     "test:e2e:public": "E2E_RELAYS=public playwright test --project=public",
     "test:soak": "E2E_SOAK=1 playwright test --project=soak",
     "gallery": "E2E_GALLERY=1 playwright test --project=gallery"
