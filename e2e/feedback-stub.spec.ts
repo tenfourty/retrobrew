@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { sampleBody } from '../src/test/feedback-fixtures';
 import { feedbackStub } from './helpers';
 
-// The e2e preview mounts the feedback stub (vite.config.ts, scripts/feedback-stub.mjs). Slice 3's sheet tests use it;
+// The e2e preview mounts the feedback stub (vite.config.ts, scripts/feedback-stub.mjs). The sheet tests use it;
 // this proves the plumbing on its own: the real build server answers /feedback and the test routes work.
 // Not tagged @public: a deployment under test has no stub.
 // The stub is one state shared by every worker of the run, so this file's tests run one after another.

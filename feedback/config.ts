@@ -1,5 +1,5 @@
 // The service's configuration, read once from the environment. Nothing here is secret: the reader's public key and the
-// hash of its pull token. Either may be given inline or as a file path (`..._FILE`), as Flux mounts them.
+// hash of its pull token. Either may be given inline or as a file path (`..._FILE`), as a mounted secret.
 import { readFileSync } from 'node:fs';
 
 export interface Config {
