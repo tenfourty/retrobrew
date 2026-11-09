@@ -61,6 +61,9 @@ export interface Transport {
   resume?(focus?: ResumeFocus): void;
   // A participant tells the direct path whose link it cares about at all times, not only at a resume.
   follow?(focus: () => ResumeFocus): void;
+  // The facilitator tells the direct path which participants have just joined it, so a resume can
+  // tell a link the lock cut off before the direct room listed it.
+  expectPeers?(peers: () => string[]): void;
 }
 
 export interface Inbound {
@@ -80,6 +83,7 @@ export interface RoomTransport extends Transport {
   relayHealth(): RelayHealth[];
   resume(focus?: ResumeFocus): void;
   follow?(focus: () => ResumeFocus): void;
+  expectPeers?(peers: () => string[]): void;
   // The peers of the direct path alone, as its room reports them (none while it rejoins).
   directPeers?(): string[];
 }

@@ -31,5 +31,6 @@ export function toRoomTransport(t: Transport | RoomTransport): RoomTransport {
     relayHealth: () => t.relayHealth?.() ?? [],
     resume: (focus) => t.resume?.(focus),
     follow: (focus) => t.follow?.(focus),
+    expectPeers: (peers) => t.expectPeers?.(peers),
   };
 }

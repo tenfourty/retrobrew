@@ -195,6 +195,11 @@ export class ParticipantSession {
     return this.transport.relayHealth();
   }
 
+  // How many peers the direct (WebRTC) path reports, as a count only: for the feedback report, never ids.
+  directPeerCount(): number {
+    return this.transport.directPeers?.().length ?? 0;
+  }
+
   // The outbox gave up (three resends with the host gone, or two minutes with a slow one): "Your last change didn't reach the facilitator." with Retry.
   get pendingFailed(): boolean {
     return this.outbox.failed;

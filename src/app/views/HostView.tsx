@@ -13,6 +13,11 @@ import { recordLink, startHosting, type HostHandle } from '../host-controller';
 import { StartCancelled } from '../startup';
 import { rememberName } from '../identity';
 import { forced, forcedStartError } from '../test-hooks';
+import { clearCanary, noteError } from '../../feedback/errors';
+import { FEEDBACK_BUILT, feedbackEnabled } from '../feedback-gate';
+import { FeedbackButton, FeedbackFooter, useErrorTrouble, useFeedbackSheet, useTroubleSignals } from '../feedback';
+import { registerBoardStrings, registerFragmentStrings } from '../feedback-canary';
+import { NO_MEETING, reportPhase, type PageContext } from '../feedback-inputs';
 import { MeetingScreen, type Refusal } from './MeetingScreen';
 import { StatePage, StatePanel } from './StatePage';
 
@@ -81,10 +86,15 @@ export function HostView({ record, store }: { record: BoardRecord; store: BoardS
       if (error instanceof StartCancelled || controller.signal.aborted) return;
       // Hosting failed, so the share step has nothing to show: don't keep the note for a later view.
       takeJustCreated(record.boardId);
+      if (FEEDBACK_BUILT && feedbackEnabled()) noteError('startup', error);
       setFailed(error instanceof Error ? error.message : String(error));
     }
   };
 
+  // The link's own strings go to the scrubber first, so an error while starting cannot quote them.
+  useEffect(() => {
+    if (FEEDBACK_BUILT && feedbackEnabled()) registerFragmentStrings(location.hash);
+  }, []);
   useEffect(() => {
     void begin(false);
     return () => {
@@ -94,11 +104,35 @@ export function HostView({ record, store }: { record: BoardRecord; store: BoardS
     };
   }, [record.boardId]);
 
+  // What this page tells a feedback report about itself: named signals only (feedback-inputs.ts).
+  const context = (): PageContext => {
+    const h = handle.current;
+    if (!h) return { ...NO_MEETING, page: 'state', role: 'facilitator' };
+    const view = h.session.current;
+    return {
+      page: 'host', role: 'facilitator', phase: reportPhase(view.phase), connection: h.session.connection, relays: h.session.relayHealth(),
+      directPeers: h.session.presence().filter((p) => p.status === 'direct').length, people: h.session.online().length,
+    };
+  };
+  useTroubleSignals({
+    startup: failed !== null,
+    save: handle.current?.session.saveFailed ?? false,
+    connectionAfterDelay: handle.current?.session.connection === 'noRelays',
+  });
+  const errorTrouble = useErrorTrouble();
+  // The scrubber learns the board's words after every render (the state changes as people add topics and join), and forgets them with the session.
+  useEffect(() => {
+    if (FEEDBACK_BUILT && feedbackEnabled() && handle.current) registerBoardStrings(handle.current.session.current, location.hash);
+  });
+  useEffect(() => (FEEDBACK_BUILT ? clearCanary : undefined), [record.boardId]);
+  const feedback = useFeedbackSheet(context);
+  const footer = <><FeedbackFooter place="state" wiring={feedback.wiring} open={feedback.open} />{feedback.element}</>;
+
   // The hosting states (docs/product/mvp-screens.md, Hosting states).
-  if (lost) return <StatePage><StatePanel><h1 className="app-panel-title">This meeting is now open in another tab.</h1></StatePanel></StatePage>;
+  if (lost) return <StatePage footer={footer}><StatePanel><h1 className="app-panel-title">This meeting is now open in another tab.</h1></StatePanel></StatePage>;
   if (blocked) {
     return (
-      <StatePage>
+      <StatePage footer={footer}>
         <StatePanel>
           <h1 className="app-panel-title">This meeting is open in another tab.</h1>
           <div><Button onClick={() => void begin(true)}>Take over here</Button></div>
@@ -108,17 +142,20 @@ export function HostView({ record, store }: { record: BoardRecord; store: BoardS
   }
   if (failed !== null) {
     return (
-      <StatePage>
+      <StatePage footer={footer}>
         <StatePanel alert>
           <h1 className="app-panel-title">{COPY.startFailed}</h1>
           <p className="rb-hint">{failed}</p>
-          <div><Button onClick={() => void begin(false)}>Try again</Button></div>
+          <div className="state-actions">
+            <Button onClick={() => void begin(false)}>Try again</Button>
+            {feedback.wiring ? <FeedbackButton place="failed" troubled size="md" onClick={feedback.open} /> : null}
+          </div>
         </StatePanel>
       </StatePage>
     );
   }
   const h = handle.current;
-  if (!h) return <StatePage><StatePanel><h1 className="app-panel-title">Starting the meeting…</h1></StatePanel></StatePage>;
+  if (!h) return <StatePage footer={footer}><StatePanel><h1 className="app-panel-title">Starting the meeting…</h1></StatePanel></StatePage>;
   const current = h.record();
   const hostId = Object.values(current.state.attendees).find((a) => a.role === 'owner')!.id;
   const backUp = () => downloadText(`${current.state.boardName || 'board'}.retrobrew.json`, exportBoard(current, true));
@@ -137,7 +174,7 @@ export function HostView({ record, store }: { record: BoardRecord; store: BoardS
       <MeetingScreen view={redactFor(h.session.current, hostId, { online: h.session.online() })} you={hostId} hostNow={() => h.session.hostNow()}
         send={send} refusal={refusal} readOnly={false} outcome={outcome}
         onRename={(name) => { void h.session.local({ type: 'join', name }); void rememberName(store, name); }}
-        banner={hostBanner({ ...h.session, storageNotice: !persistenceDismissed, ...forced().host })} onBannerAction={onBannerAction}
+        banner={hostBanner({ ...h.session, storageNotice: !persistenceDismissed, ...forced().host, errorTrouble })} onBannerAction={onBannerAction}
         host={{ link: recordLink(current, location.href), presence: h.session.presence(), relays: h.session.relayHealth(), oversizeCount: h.session.oversizeCount, onBackUp: backUp,
           countedView: (() => {
             const online = h.session.online();
@@ -147,7 +184,7 @@ export function HostView({ record, store }: { record: BoardRecord; store: BoardS
             }
             return counted.current.view;
           })() }}
-        inviteOnOpen={inviteOnOpen} />
+        inviteOnOpen={inviteOnOpen} feedback={feedback.wiring} />
     </Announcer>
   );
 }

@@ -36,11 +36,19 @@ const SID_RANDOM_CHARS = 12;
 // The margin added to each measurement.
 export const MARGIN_RATIO = 0.02;
 export const MARGIN_BYTES = 256;
-// What every entry is allowed beyond the deflated size of the one measured for it. Entries with a fingerprint for
-// an ID differ only in the random sids and numbers of their acks and rejects, which move a deflated entry by a few
-// bytes (size.test.ts measures the spread). Entries also differ in the person's ID, which can be any length in an
-// imported board: those are deflated on their own (standInEventBytes).
-export const ITEM_SLACK_BYTES = 24;
+// Entries with a fingerprint for an ID differ only in the random sids and numbers of their acks and rejects, which
+// move a deflated entry by a few bytes (size.test.ts measures the spread). The meter deflates this many independently
+// drawn entries and gives every such entry the largest deflated size among them: the maximum of 16 draws is above
+// nearly every entry, and the few bytes it can still fall short of one entry are far below what the sum over the
+// board needs (a shortfall in one entry is covered by the surplus of the rest), which ITEM_SLACK_BYTES adds on top.
+// Entries also differ in the person's ID, which can be any length in an imported board: those are deflated on their
+// own (standInEventBytes).
+export const SAMPLED_ENTRIES = 16;
+// What every entry is allowed beyond that largest sampled size (size.test.ts, "the sampled maximum").
+export const ITEM_SLACK_BYTES = 2;
+// An entry whose person's ID is not a fingerprint is deflated once, on its own body, with no maximum over draws to
+// lean on; its sids and numbers move its deflated size by up to about 15 bytes, so it keeps the earlier, larger slack.
+export const ODD_ENTRY_SLACK_BYTES = 24;
 // Deflate never expands its input by more than a zlib header and trailer plus 5 bytes per stored block; entries are
 // far below one block, so this caps the slack where an entry is nearly incompressible.
 const STORED_BLOCK_OVERHEAD = 11;
@@ -189,7 +197,7 @@ function standInBundle(state: BoardState, s: StandIns) {
   const bundle = { host: s.text(B64URL, TRANSPORT_ID_CHARS), epoch: s.number(), seq: s.number() };
   const personals = bundleRecipients(state, owner, strangers).map((id) => largestPersonal(state, id, s, bundle) as { you: string });
   const fields = { ...bundle, refreshSeq: s.number(), hostNow: s.number(), boardId: state.boardId, shared: largestShared(state, s) };
-  return { fields, personals };
+  return { fields, personals, bundle };
 }
 
 // The sealed full refresh the meter's figure stands for, built for real: the largest bundle for this board, signed
@@ -200,24 +208,27 @@ export async function buildStandInRefresh(state: BoardState, signer: Signer, roo
 }
 
 // The meter's figure before its margin: the length of the event that carries the stand-in bundle, from the real
-// deflated length of the outer message and of one entry, plus ITEM_SLACK_BYTES for each entry (never more than a
-// stored block would take), and fixed overheads for the rest. The measured entry names a random 22-character person,
-// so it stands for every entry whose person is one (every live joiner is: an ID is a fingerprint); an entry whose
-// person's ID is any other (an imported board can hold IDs of any content and length) is deflated for real, on its own.
+// deflated length of the outer message and of SAMPLED_ENTRIES entries, plus ITEM_SLACK_BYTES for each entry on top of
+// the largest of those (never more than a stored block would take), and fixed overheads for the rest. The sampled
+// entries name random 22-character people, so the largest stands for every entry whose person is one (every live
+// joiner is: an ID is a fingerprint); an entry whose person's ID is any other (an imported board can hold IDs of any
+// content and length) is deflated for real, on its own.
 export async function standInEventBytes(state: BoardState, s: StandIns = new StandIns()): Promise<number> {
-  const { fields, personals } = standInBundle(state, s);
+  const { fields, personals, bundle } = standInBundle(state, s);
   const outerMessage = { t: 'bundle', ...fields, items: personals.length, itemsHash: s.text(B64URL, ITEMS_HASH_CHARS) };
   const envelope = { v: 1, pub: s.text(B64URL, PUBLIC_KEY_CHARS), body: JSON.stringify(outerMessage), sig: s.text(B64URL, ECDSA_SIGNATURE_CHARS) };
   const bodies = personals.map((personal) => utf8(JSON.stringify(personal)));
-  const template = utf8(JSON.stringify({ ...personals[0], you: s.text(B64URL, PERSON_ID_CHARS) }));
+  const samples = Array.from({ length: SAMPLED_ENTRIES }, () => utf8(JSON.stringify(largestPersonal(state, s.text(B64URL, PERSON_ID_CHARS), s, bundle))));
   const odd = personals.map((personal) => !FINGERPRINT.test(personal.you));
-  const [outer, entry, ...own] = await Promise.all([
-    deflate(utf8(JSON.stringify(envelope))), deflate(template), ...bodies.filter((_, i) => odd[i]).map((body) => deflate(body)),
+  const [outer, ...deflated] = await Promise.all([
+    deflate(utf8(JSON.stringify(envelope))), ...samples.map((sample) => deflate(sample)), ...bodies.filter((_, i) => odd[i]).map((body) => deflate(body)),
   ]);
+  const entry = Math.max(...deflated.slice(0, SAMPLED_ENTRIES).map((d) => d.length));
+  const own = deflated.slice(SAMPLED_ENTRIES);
   let next = 0;
   const entries = bodies.map((body, i) => {
-    const deflated = odd[i] ? own[next++].length : entry.length;
-    return Math.min(deflated + ITEM_SLACK_BYTES, body.length + STORED_BLOCK_OVERHEAD);
+    const deflated = odd[i] ? own[next++].length : entry;
+    return Math.min(deflated + (odd[i] ? ODD_ENTRY_SLACK_BYTES : ITEM_SLACK_BYTES), body.length + STORED_BLOCK_OVERHEAD);
   });
   return relayEventBytesFor(bundleWireBytes(outer.length, entries), s.text(B64URL, TRANSPORT_ID_CHARS), s.text(HEX, TOPIC_CHARS));
 }

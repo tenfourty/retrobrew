@@ -1,5 +1,6 @@
 import type { BoardRecord, BoardStore, JoinedRecord } from '../store/board-store';
 import { forgetJoined } from './joined';
+import { shortDate } from './lengths';
 import { meetingStatus } from './meeting-file';
 
 // One row of "Your meetings" (docs/product/mvp-screens.md): a meeting this browser facilitates, or one it joined.
@@ -22,7 +23,9 @@ export function meetingRows(boards: readonly BoardRecord[], joined: readonly Joi
 export function rowStatus(row: MeetingRow): string {
   return row.kind === 'hosted'
     ? meetingStatus(row.record.state)
-    : `Joined as ${row.joined.name}. Opens while the facilitator is running it`;
+    : row.joined.endedAt !== undefined
+      ? `Joined as ${row.joined.name}. Ended${shortDate(row.joined.endedAt) ? ` ${shortDate(row.joined.endedAt)}` : ''}`
+      : `Joined as ${row.joined.name}. Opens while the facilitator is running it`;
 }
 
 export const REMOVE_OPEN_ELSEWHERE = 'This meeting is open in another tab. Close it there, then remove it';

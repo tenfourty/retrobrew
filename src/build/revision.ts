@@ -18,3 +18,10 @@ export function buildRevision(env: Record<string, string | undefined> = process.
     return 'unknown';
   }
 }
+
+// The seven-character form of the build that the page, the footers and the feedback report carry (__RB_REVISION__).
+// Always derived from buildRevision(), so it is the start of what /version.txt says: the commit's first seven digits,
+// or "unknown" when no commit ID can be found.
+export function shortRevision(env: Record<string, string | undefined> = process.env, git: () => string = gitHead): string {
+  return buildRevision(env, git).slice(0, 7);
+}

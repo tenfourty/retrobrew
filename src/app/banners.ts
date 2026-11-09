@@ -20,9 +20,10 @@ export const COPY = {
   stillTrying: 'Still trying to reach the facilitator. They need to have the meeting open.',
   checkLink: "If it still doesn't connect, check that you opened the whole link, or ask the facilitator to send it again.",
   startFailed: "The meeting couldn't start on this device.",
+  wentWrong: 'Something went wrong on this page. If it keeps happening, tell us what you were doing.',
 } as const;
 
-export type BannerAction = 'reload' | 'retry' | 'backUp' | 'dismiss';
+export type BannerAction = 'reload' | 'retry' | 'backUp' | 'dismiss' | 'feedback';
 
 // How long an outcome line shows (docs/product/mvp-screens.md, Outcome lines).
 export const OUTCOME_MS = 5000;
@@ -43,19 +44,24 @@ export interface ParticipantSignals {
   staleTab: boolean;
   // tooManyTabs's message instead of staleTab's, when that was the refusal.
   staleTabMessage?: string | null;
+  // The page caught an error of its own (the trouble latch's `error` source): the error banner, lowest of all.
+  errorTrouble?: boolean;
 }
+
+const errorBanner = (): Banner => ({ text: COPY.wentWrong, action: 'feedback' });
 
 // The one connection banner a participant sees, highest priority first. On an ended meeting the ended banner always
 // wins, so there is no connection banner at all.
 export function participantBanner(s: ParticipantSignals): Banner | null {
-  if (s.ended) return null;
+  // The ended banner is the meeting's own, so it hides every connection banner, but not the error banner.
+  if (s.ended) return s.errorTrouble ? errorBanner() : null;
   if (s.mismatch === 'reloadThisPage') return { text: COPY.reloadThisPage, action: 'reload' };
   if (s.mismatch === 'askFacilitator') return { text: COPY.askFacilitator };
   if (s.connection === 'noRelays') return { text: COPY.noRelays };
   if (s.connection === 'hostOffline') return { text: COPY.hostOffline };
   if (s.pendingFailed) return { text: COPY.pendingFailed, action: 'retry' };
   if (s.staleTab) return { text: s.staleTabMessage ?? COPY.staleTab, action: 'reload' };
-  return null;
+  return s.errorTrouble ? errorBanner() : null;
 }
 
 export interface HostSignals {
@@ -68,6 +74,8 @@ export interface HostSignals {
   oversize: boolean;
   // Another page is hosting this meeting with the same key (HostSession.otherBrowser).
   otherBrowser?: boolean;
+  // The page caught an error of its own (the trouble latch's `error` source).
+  errorTrouble?: boolean;
 }
 
 export function hostBanner(s: HostSignals): Banner | null {
@@ -77,6 +85,8 @@ export function hostBanner(s: HostSignals): Banner | null {
   // Trouble with the meeting itself outranks the notice, which is always there and only advice.
   if (s.overLimits) return { text: COPY.overLimits };
   if (s.oversize) return { text: COPY.oversize };
+  // Lowest of the faults, above the always-there advice, and it hides none of the more specific ones.
+  if (s.errorTrouble) return errorBanner();
   if (s.storageNotice) return { text: COPY.storageNotice, action: 'dismiss' };
   return null;
 }

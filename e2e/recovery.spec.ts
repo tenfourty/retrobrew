@@ -96,7 +96,8 @@ test('a participant with a live direct connection is up to date within 5 s of un
   }
 });
 
-test('a page that comes back from a lock rejoins the direct room through fresh signalling clients, and its direct connection returns', { tag: '@public' }, async ({ browser }) => {
+// Not @public: it reads the e2e-only direct-peers hook (window.__rbDirectPeers), which a production build drops.
+test('a page that comes back from a lock rejoins the direct room through fresh signalling clients, and its direct connection returns', async ({ browser }) => {
   const hostContext = await browser.newContext();
   const participantContext = await browser.newContext();
   await installNetworkHooks(participantContext);

@@ -9,7 +9,7 @@ const WORDS = ['trunk', 'based', 'development', 'release', 'cadence', 'pairing',
   'faster', 'roadmap', 'review', 'tech', 'debt', 'budget', 'meetings', 'without', 'agendas', 'and', 'focus', 'time'];
 
 // A topic of exactly `length` characters made of English words.
-function sentence(i: number, length: number): string {
+export function sentence(i: number, length: number): string {
   let text = '';
   for (let w = i; text.length < length; w++) text += `${text ? ' ' : ''}${WORDS[(w * 7) % WORDS.length]}`;
   return text.slice(0, length).trimEnd().padEnd(length, '.');

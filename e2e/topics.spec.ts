@@ -245,3 +245,32 @@ test('the add box names you, and Change renames you for the whole meeting', asyn
     await Promise.all(contexts.map((c) => c.close()));
   }
 });
+
+// docs/product/mvp-screens.md, The board, Focus after other actions: if someone else deletes the topic while its delete
+// confirmation is open, the confirmation closes.
+test('a delete confirmation closes when someone else deletes the topic', async ({ browser }) => {
+  const contexts = await Promise.all([browser.newContext(), browser.newContext()]);
+  try {
+    const [host, ann] = await Promise.all(contexts.map((c) => c.newPage()));
+    const url = await hostMeeting(host, 'Hana', 'Delete elsewhere');
+    await joinMeeting(ann, url, 'Ann');
+    await addTopic(ann, 'Pairing rotation');
+    await addTopic(ann, 'Release notes');
+    await expect(topicCard(host, 'Pairing rotation')).toBeVisible({ timeout: NETWORK_WAIT });
+
+    await topicCard(ann, 'Pairing rotation').getByRole('button', { name: 'Delete' }).click();
+    const confirm = ann.getByRole('dialog', { name: /^Delete #\d+\?$/ });
+    await expect(confirm.getByText('Pairing rotation')).toBeVisible();
+
+    await topicCard(host, 'Pairing rotation').getByRole('button', { name: 'Delete' }).click();
+    await host.getByRole('dialog', { name: /^Delete #\d+\?$/ }).getByRole('button', { name: 'Delete topic' }).click();
+
+    await expect(topicCard(ann, 'Pairing rotation')).toHaveCount(0, { timeout: NETWORK_WAIT });
+    await expect(confirm).toHaveCount(0);
+    // The other topic is untouched, and Ann's board is usable.
+    await expect(topicCard(ann, 'Release notes')).toBeVisible();
+    await expect(ann.getByRole('dialog')).toHaveCount(0);
+  } finally {
+    await Promise.all(contexts.map((c) => c.close()));
+  }
+});

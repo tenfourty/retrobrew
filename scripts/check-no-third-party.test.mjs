@@ -22,7 +22,7 @@ function site(files) {
   }
   return dir;
 }
-const problems = (files) => findProblems(site(files)).join('\n');
+const problems = (files, feedbackOrigin = '') => findProblems(site(files), feedbackOrigin).join('\n');
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 describe('check:assets', () => {
@@ -80,6 +80,34 @@ describe('check:assets', () => {
     expect(problems({ 'assets/app.js': 'globalThis.__rbDirectPeers=()=>[];' })).toContain('assets/app.js: browser-battery hook __rbDirectPeers');
     expect(problems({ 'assets/app.js': 'sessionStorage.getItem("rb-e2e-force")' })).toContain('assets/app.js: browser-battery hook rb-e2e-force');
     expect(problems({ 'assets/app.js': 'throw new Error("A browser test stopped the meeting from starting")' })).toContain('assets/app.js: browser-battery hook A browser test stopped the meeting from starting');
+  });
+
+  it('fails a build that carries a feedback browser-battery hook or stub route', () => {
+    for (const hook of ['rb-e2e-feedback', '__rbFeedbackLog', '/__feedback']) {
+      expect(problems({ 'assets/app.js': `x("${hook}")` })).toContain(`assets/app.js: browser-battery hook ${hook}`);
+    }
+  });
+
+  it('fails a build without FEEDBACK_ORIGIN that still carries the feedback feature', () => {
+    expect(problems({ 'assets/app.js': 'fetch("/feedback",{method:"POST"})' })).toContain('assets/app.js: the feedback send path');
+    expect(problems({ 'assets/app.js': "x='/feedback'" })).toContain('the feedback send path');
+    expect(problems({ 'assets/app.js': 'title:"Send feedback"' })).toContain('the feedback copy "Send feedback"');
+    expect(problems({ 'assets/app.js': 'fetch("/version.txt");x("/app/#feedback")' })).toBe('');
+  });
+
+  it('wants the feedback feature in a build made with FEEDBACK_ORIGIN', () => {
+    const origin = 'https://retrobrew.app';
+    expect(problems({ 'assets/app.js': 'fetch("/feedback")' }, origin)).toBe('');
+    expect(problems({ 'assets/app.js': 'x' }, origin)).toContain('FEEDBACK_ORIGIN is set but no script carries the feedback send path');
+  });
+
+  it('keeps the public pages and their scripts inert about feedback', () => {
+    const page = (body) => PUBLIC_PAGE.replace('<body>', `<body>${body}`);
+    expect(problems({ 'index.html': page('<a href="/app/#feedback">Send feedback</a>') })).toBe('');
+    expect(problems({ 'index.html': page('<a href="/feedback">x</a>') })).toContain('index.html: a public page names the /feedback endpoint');
+    expect(problems({ 'lean-coffee/index.html': page('<a href="https://retrobrew.app/feedback">x</a>') })).toContain('names the /feedback endpoint');
+    expect(problems({ 'site-mode.js': 'fetch ("/x")' })).toContain('site-mode.js: a public page calls fetch(');
+    expect(problems({ 'legacy-link.js': 'fetch("/app/")' })).toContain('legacy-link.js: a public page calls fetch(');
   });
 
   it('fails a build that carries a test relay', () => {
@@ -165,6 +193,21 @@ describe('check:assets', () => {
       expect(problems({ 'index.html': PUBLIC_PAGE.replace('</head>', `${tag}</head>`) }), tag).toContain('a public page preloads a script (app code)');
     }
     expect(problems({ 'index.html': PUBLIC_PAGE.replace('</head>', '<link rel="preload" as="font" href="./f.woff2" crossorigin></head>') })).not.toContain('preloads a script');
+  });
+
+  it('fails a version.txt that is not a commit ID only when RETROBREW_LAUNCH=1', () => {
+    const saved = process.env.RETROBREW_LAUNCH;
+    try {
+      delete process.env.RETROBREW_LAUNCH;
+      expect(problems({ 'version.txt': 'unknown\n' })).toBe('');
+      process.env.RETROBREW_LAUNCH = '1';
+      expect(problems({ 'version.txt': 'unknown\n' })).toContain('version.txt: not a commit ID');
+      expect(problems({ 'version.txt': 'dev\n' })).toContain('not a commit ID');
+      expect(problems({ 'version.txt': '0123456\n' })).not.toContain('not a commit ID');
+      expect(problems({ 'version.txt': '0123456789abcdef0123456789abcdef01234567\n' })).not.toContain('not a commit ID');
+    } finally {
+      if (saved === undefined) delete process.env.RETROBREW_LAUNCH; else process.env.RETROBREW_LAUNCH = saved;
+    }
   });
 
   it('fails the bare GitHub URL only when RETROBREW_LAUNCH=1', () => {

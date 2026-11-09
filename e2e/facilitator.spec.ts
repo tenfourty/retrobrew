@@ -150,9 +150,14 @@ test('phones fold extra actions into More, with the Facilitator controls below t
     await expect(bar.getByRole('button')).toHaveText(['More', 'Invite people']);
     await bar.getByRole('button', { name: 'More' }).click();
     const sheet = host.getByRole('dialog', { name: 'More' });
-    await expect(sheet.getByRole('list')).toHaveCount(0);
+    // The only row is the feedback sheet's; the fold has no other actions on an empty board.
+    await expect(sheet.getByRole('listitem')).toHaveText(['Send feedback']);
     await expect(sheet.getByRole('group', { name: 'Votes each' })).toBeVisible();
     await expect(sheet.getByRole('button', { name: 'End meeting' })).toBeVisible();
+    // The mode switch sits under a "Display" heading (docs/product/mvp-screens.md, open choice 3).
+    const display = sheet.getByRole('region', { name: 'Display' });
+    await expect(sheet.getByRole('heading', { name: 'Display', exact: true, level: 3 })).toBeVisible();
+    await expect(display.getByRole('switch', { name: 'Party mode' })).toBeVisible();
     await host.keyboard.press('Escape');
 
     await addTopic(host, 'Pairing rotation');
@@ -161,7 +166,7 @@ test('phones fold extra actions into More, with the Facilitator controls below t
     await expect(bar.getByRole('button')).toHaveText(['More', 'Start discussion']);
     await bar.getByRole('button', { name: 'More' }).click();
     const more = host.getByRole('dialog', { name: 'More' });
-    await expect(more.getByRole('listitem')).toHaveText(['Invite people']);
+    await expect(more.getByRole('listitem')).toHaveText(['Invite people', 'Send feedback']);
     await expect(more.getByRole('group', { name: 'Votes each' })).toBeVisible();
     await expect(more.getByRole('button', { name: 'Invite people' })).toHaveCount(1);
     await more.getByRole('listitem').getByRole('button', { name: 'Invite people' }).click();
@@ -181,7 +186,7 @@ test('phones fold extra actions into More, with the Facilitator controls below t
     await bar.getByRole('button', { name: 'Discuss #1' }).click();
     await pickTimebox(host, 'Discuss #1', '50 s');
     await bar.getByRole('button', { name: 'More' }).click();
-    await expect(more.getByRole('listitem')).toHaveText(['Stop timer', 'Return topic']);
+    await expect(more.getByRole('listitem')).toHaveText(['Stop timer', 'Return topic', 'Send feedback']);
     await more.getByRole('button', { name: 'End meeting' }).click();
     const end = host.getByRole('dialog', { name: 'End the meeting?' });
     await expect(end.getByText('#1 moves to Discussed.')).toBeVisible();

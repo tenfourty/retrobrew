@@ -1,5 +1,6 @@
 import type { Timer, ViewState } from '../engine/types';
 import { charactersLeftText, topicLength } from '../ui/format';
+import { COPY } from './banners';
 import { lengthSentence } from './lengths';
 
 type Board = Pick<ViewState, 'phase' | 'topics' | 'vote'>;
@@ -59,4 +60,37 @@ export function lengthNotice(before: string, after: string): string | null {
   const now = topicLength(after);
   const crossed = LENGTH_MARKS.filter((mark) => was < mark && now >= mark);
   return crossed.length > 0 ? charactersLeftText(now) : null;
+}
+
+// A live region is only spoken when it changes, but a reader browsing the page later still meets whatever it holds. So
+// the announcer empties it this long after it last spoke, long enough to read the longest line.
+export const LIVE_REGION_CLEAR_MS = 8000;
+
+// When a banner clears, a short line replaces the stale words in the region, where one makes sense: the facilitator
+// coming back and the network coming back. Recoveries are keyed by the banner's kind (its key in COPY), not by its
+// words, so editing the copy cannot drop one.
+type BannerKind = keyof typeof COPY;
+const RECOVERIES: Partial<Record<BannerKind, string>> = {
+  hostOffline: 'The facilitator is back.',
+  noRelays: 'The meeting network is back.',
+};
+
+function bannerKind(text: string): BannerKind | null {
+  for (const kind of Object.keys(COPY) as BannerKind[]) if (COPY[kind] === text) return kind;
+  return null;
+}
+
+export function bannerRecovery(before: string | null, after: string | null): string | null {
+  if (before === null || after !== null) return null;
+  const kind = bannerKind(before);
+  return (kind && RECOVERIES[kind]) ?? null;
+}
+
+// What the region says when the banner changes from `before` to `after` (null: no banner): the new banner's words, or
+// when it goes with nothing in its place, its recovery line if it has one. Nothing on the first render with no banner,
+// nor when a banner with no recovery clears (the region is emptied after 8 s). A banner replaced by another says the new
+// one's words only: a participant whose offline banner gives way to the ended banner hears "Meeting ended", not also
+// that the facilitator is back, since that is not what has happened.
+export function bannerLine(before: string | null, after: string | null): string | null {
+  return after ?? bannerRecovery(before, after);
 }

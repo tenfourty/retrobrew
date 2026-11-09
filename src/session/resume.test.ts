@@ -10,6 +10,7 @@ import { settle } from '../test/settle';
 import { waitFor } from '../test/wait';
 import type { Connection } from './participant';
 import { REFRESH_MS } from './pacer';
+import { PROTOCOL_VERSION } from '../protocol/version';
 
 const joined = (p: { session: { state: { attendees: Record<string, unknown> } | null }; id: string }) =>
   p.session.state?.attendees[p.id] !== undefined;
@@ -132,6 +133,39 @@ describe('participant resume and the direct path', () => {
     expect(direct.followed?.()).toEqual({ host: 'host' });
     host.stop();
     ann.session.stopHeartbeat();
+  });
+
+  it('as the host, names the participants that joined in the last 30 s to the direct path, and only those', async () => {
+    const room = await TestRoom.create();
+    const scheduler = new FakeScheduler(Date.now());
+    const hostDirect = room.direct.join('host');
+    const host = room.host('host', { scheduler, transport: new HybridTransport(hostDirect, room.relay.join('host')) });
+    expect(hostDirect.expected?.()).toEqual([]);
+    const ann = await room.person('Ann', { scheduler });
+    ann.session.startHeartbeat();
+    await runUntil(scheduler, () => joined(ann));
+    expect(hostDirect.expected?.()).toEqual(['Ann']);
+    // Heard from all the time since, but bound long ago: a participant with no direct path is not one to wait for.
+    await run(scheduler, 31_000);
+    expect(hostDirect.expected?.()).toEqual([]);
+    ann.session.stopHeartbeat();
+    host.stop();
+  });
+
+  it('as the host, names a participant still on probation, but not one speaking another protocol version', async () => {
+    const room = await TestRoom.create();
+    const hostDirect = room.direct.join('host');
+    const host = room.host('host', { transport: new HybridTransport(hostDirect, room.relay.join('host')) });
+    const record = (peerId: string, over: object) => ({
+      peerId, personId: peerId, pv: PROTOCOL_VERSION, lastPath: 'relay', lastHeardAt: Date.now(), lastDirectAt: Number.NEGATIVE_INFINITY,
+      boundAt: Date.now(), probation: false, ...over,
+    });
+    const peers = (host as unknown as { peers: Map<string, unknown> }).peers;
+    peers.set('a a', record('a', {}));
+    peers.set('b b', record('b', { probation: true }));
+    peers.set('c c', record('c', { pv: PROTOCOL_VERSION - 1 }));
+    expect(hostDirect.expected?.()).toEqual(['a', 'b']);
+    host.stop();
   });
 });
 

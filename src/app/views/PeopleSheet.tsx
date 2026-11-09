@@ -1,9 +1,11 @@
+import type { ComponentChildren } from 'preact';
 import type { ViewState } from '../../engine/types';
 import type { PresenceEntry } from '../../session/host';
 import type { RelayHealth } from '../../transport/types';
 import { AttendeeChip, ModeSwitch } from '../../ui/components';
 import { Sheet } from '../../ui/sheet';
 import { Switch } from '../../ui/switch';
+import { HOST_AWAY_PEOPLE_NOTE } from '../host-away';
 import { connectionDetails, peopleRows } from '../people';
 
 export const SOUND_SWITCH = 'Play the timer sound on this device';
@@ -12,7 +14,7 @@ export const SOUND_SWITCH = 'Play the timer sound on this device';
 // for the facilitator, how each person is connected and the state of each relay.
 export function PeopleSheet(props: {
   open: boolean; onClose: () => void; opener?: HTMLElement | null; view: ViewState; you: string; wide: boolean;
-  sound: boolean; onSound: (on: boolean) => void;
+  sound: boolean; onSound: (on: boolean) => void; hostAway?: boolean; feedbackButton?: ComponentChildren;
   presence?: PresenceEntry[]; relays?: RelayHealth[]; oversizeCount?: number;
 }) {
   const rows = peopleRows(props.view, props.you, props.presence);
@@ -28,10 +30,11 @@ export function PeopleSheet(props: {
           </li>
         ))}
       </ul>
+      {props.hostAway ? <p className="rb-hint">{HOST_AWAY_PEOPLE_NOTE}</p> : null}
       <section className="mtg-sheet-section" aria-labelledby="this-device">
         <h3 className="mtg-sheet-heading" id="this-device">This device</h3>
         <Switch label={SOUND_SWITCH} checked={props.sound} onChange={props.onSound} />
-        {props.wide ? null : <div><ModeSwitch /></div>}
+        {props.wide ? null : <div className="mtg-device-row"><ModeSwitch />{props.feedbackButton}</div>}
       </section>
       {details ? (
         <details className="mtg-details">

@@ -84,6 +84,10 @@ export class HybridTransport implements RoomTransport {
     this.direct.follow?.(focus);
   }
 
+  expectPeers(peers: () => string[]): void {
+    this.direct.expectPeers?.(peers);
+  }
+
   onMessage(cb: (peerId: string, data: Bytes, meta?: MessageMeta) => void): void { this.messageCb = cb; }
   onInbound(cb: (message: Inbound) => void): void { this.inboundCb = cb; }
   onPeerJoin(cb: (peerId: string) => void): void { this.joinCb = cb; }

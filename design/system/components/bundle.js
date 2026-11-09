@@ -1,4 +1,4 @@
-/* @ds-bundle: {"format":4,"namespace":"Retrobrew","components":[{"name":"ModeSwitch"},{"name":"Button"},{"name":"StateChip"},{"name":"Column"},{"name":"TopicCard"},{"name":"VoteDots"},{"name":"VoteBudget"},{"name":"DialTimer"},{"name":"TimeUpVote"},{"name":"TopicInput"},{"name":"AttendeeChip"},{"name":"Badge"},{"name":"Sheet"},{"name":"ConfirmDialog"},{"name":"QrPanel"},{"name":"Banner"},{"name":"Switch"},{"name":"Segmented"},{"name":"OutcomeLine"},{"name":"ActionBar"},{"name":"ActionList"},{"name":"ColumnGroup"},{"name":"Tabs"},{"name":"StatusStrip"},{"name":"EndedSummary"},{"name":"Select"}]} */
+/* @ds-bundle: {"format":4,"namespace":"Retrobrew","components":[{"name":"ModeSwitch"},{"name":"Button"},{"name":"StateChip"},{"name":"Column"},{"name":"TopicCard"},{"name":"VoteDots"},{"name":"VoteBudget"},{"name":"DialTimer"},{"name":"TimeUpVote"},{"name":"TopicInput"},{"name":"AttendeeChip"},{"name":"Badge"},{"name":"Sheet"},{"name":"ConfirmDialog"},{"name":"QrPanel"},{"name":"Banner"},{"name":"ReportList"},{"name":"Switch"},{"name":"Segmented"},{"name":"OutcomeLine"},{"name":"ActionBar"},{"name":"ActionList"},{"name":"ColumnGroup"},{"name":"Tabs"},{"name":"StatusStrip"},{"name":"EndedSummary"},{"name":"Select"}]} */
 (function () {
   var React = window.React;
   var h = React.createElement;
@@ -261,11 +261,26 @@
     return h("div", { className: cx("rb-qr", props.className) }, props.children);
   }
 
-  /* tone: info, warning or error. action: { label, onClick } adds a small secondary button. */
+  /* tone: info, warning or error. action: { label, onClick } adds a small secondary button; secondAction adds a small ghost button beside it. */
   function Banner(props) {
+    var first = props.action ? h(Button, { variant: "secondary", size: "sm", onClick: props.action.onClick }, props.action.label) : null;
+    var second = props.secondAction ? h(Button, { variant: "ghost", size: "sm", onClick: props.secondAction.onClick }, props.secondAction.label) : null;
     return h("div", { className: cx("rb-banner", "rb-banner-" + (props.tone || "info"), props.className) },
       h("p", { className: "rb-banner-text" }, props.children),
-      props.action ? h(Button, { variant: "secondary", size: "sm", onClick: props.action.onClick }, props.action.label) : null);
+      second ? h("div", { className: "rb-banner-actions" }, first, second) : first);
+  }
+
+  /* rows: [{ label, value }] shown as a definition list. json, if given, sits in a disclosure as a scrollable block. */
+  function ReportList(props) {
+    var json = props.json == null ? null : h("details", { className: "rb-report-json" },
+      h("summary", null, props.jsonSummary),
+      h("pre", { className: "rb-report-pre", tabIndex: 0, "aria-label": props.jsonLabel }, props.json),
+      props.onCopy ? h(Button, { variant: "secondary", size: "sm", onClick: props.onCopy }, props.copyLabel) : null);
+    return h("div", { className: cx("rb-report", props.className) },
+      h("dl", { className: "rb-report-list" }, props.rows.map(function (r) {
+        return h("div", { className: "rb-report-row", key: r.label }, h("dt", null, r.label), h("dd", null, r.value));
+      })),
+      json);
   }
 
   /* An on/off control. The label is the button's own text, so the whole row is the tap target. */
@@ -353,6 +368,6 @@
         (props.options || []).map(function (o) { return h("option", { key: o.value, value: o.value }, o.label); })));
   }
 
-  var api = { Select: Select, EndedSummary: EndedSummary, ColumnGroup: ColumnGroup, Tabs: Tabs, StatusStrip: StatusStrip, ActionBar: ActionBar, ActionList: ActionList, Segmented: Segmented, OutcomeLine: OutcomeLine, Banner: Banner, Switch: Switch, Sheet: Sheet, ConfirmDialog: ConfirmDialog, QrPanel: QrPanel, Badge: Badge, ModeSwitch: ModeSwitch, Button: Button, StateChip: StateChip, Column: Column, TopicCard: TopicCard, VoteDots: VoteDots, VoteBudget: VoteBudget, DialTimer: DialTimer, TimeUpVote: TimeUpVote, TopicInput: TopicInput, AttendeeChip: AttendeeChip, setMode: setMode, getMode: getMode, useMode: useMode };
+  var api = { ReportList: ReportList, Select: Select, EndedSummary: EndedSummary, ColumnGroup: ColumnGroup, Tabs: Tabs, StatusStrip: StatusStrip, ActionBar: ActionBar, ActionList: ActionList, Segmented: Segmented, OutcomeLine: OutcomeLine, Banner: Banner, Switch: Switch, Sheet: Sheet, ConfirmDialog: ConfirmDialog, QrPanel: QrPanel, Badge: Badge, ModeSwitch: ModeSwitch, Button: Button, StateChip: StateChip, Column: Column, TopicCard: TopicCard, VoteDots: VoteDots, VoteBudget: VoteBudget, DialTimer: DialTimer, TimeUpVote: TimeUpVote, TopicInput: TopicInput, AttendeeChip: AttendeeChip, setMode: setMode, getMode: getMode, useMode: useMode };
   window.Retrobrew = Object.assign(window.Retrobrew || {}, api);
 })();

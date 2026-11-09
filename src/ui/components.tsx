@@ -290,8 +290,16 @@ export function TopicInput(props: TopicInputProps) {
   );
 }
 
+// Up to two capitals, from the first character of the first two words that start with a letter or a digit. A word that
+// starts with a bracket, a symbol or an emoji is skipped, so "Fran (facilitator)" gives "F". No such word gives "?".
+export function initialsOf(name: string): string {
+  const letters = name.split(/\s+/).map((w) => [...w][0] ?? '').filter((c) => /^[\p{L}\p{N}]$/u.test(c));
+  // Uppercasing can expand a character ("ß" gives "SS"): keep one code point of each.
+  return letters.length === 0 ? '?' : letters.slice(0, 2).map((c) => [...c.toUpperCase()][0]).join('');
+}
+
 export function AttendeeChip(props: { name: string; role?: string; online?: boolean; handRaised?: boolean; queue?: number; className?: string }) {
-  const initials = (props.name || '?').split(/\s+/).map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase();
+  const initials = initialsOf(props.name);
   return (
     <span className={cx('rb-person', props.className)}>
       <span className="rb-avatar" data-presence={props.online ? 'online' : 'away'} aria-hidden="true">{initials}</span>

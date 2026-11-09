@@ -144,6 +144,18 @@ describe('redactFor', () => {
     }
   });
 
+  it('never sends moveOnUndo, to a guest or a facilitator, in a whole view or either part of a split one', () => {
+    const s = FIXTURES['discussion, time-up vote open']();
+    s.attendees[BOB].role = 'facilitator';
+    s.moveOnUndo = { topicId: 2, timer: { ...s.timer! }, continueVote: { ...s.continueVote! } };
+    for (const viewer of VIEWERS) {
+      const { shared, personal } = splitView(s, viewer, CTX[viewer]);
+      for (const json of [JSON.stringify(redactFor(s, viewer, CTX[viewer])), JSON.stringify(shared), JSON.stringify(personal)]) {
+        expect(json).not.toContain('moveOnUndo');
+      }
+    }
+  });
+
   it('gives a facilitator the totals without voting, and no hidden counts', () => {
     const s = FIXTURES['discussion, time-up vote open']();
     s.attendees[BOB].role = 'facilitator';

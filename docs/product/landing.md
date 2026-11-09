@@ -96,14 +96,18 @@ Messages always pass through public Nostr relays, and also go directly between d
 
 Hidden votes are hidden on screen, not cryptographically secret. The same goes for the vote on whether to keep going: Retrobrew never shows or stores who chose what, but everyone in a meeting shares its key, so an attendee who records the meeting's network traffic could work out who voted for which topic, and who chose what.
 
+Everyone in a meeting connects through the same built-in relays. A modified copy of Retrobrew set up with other relays can't change that for the people who join, because the meeting link carries no relay choice.
+
+Votes count per device, not per person, because there are no accounts: someone who joins from two devices gets a full set of votes on each.
+
 **What if the facilitator closes the tab?**
-Attendees can still read the board, but nobody can change it until the facilitator opens the meeting again in the same browser, from "Your meetings". A running timer keeps going on the facilitator's clock, so if it runs out while they are away, time's up appears for everyone once they are back, and then everyone carries on. The same happens if the facilitator's phone locks, so Retrobrew asks it to stay awake while the meeting runs. A private window forgets the meeting when it closes. Browsers may clear saved meetings when space runs low, so Retrobrew reminds the facilitator to make a backup now and then. "Your meetings" also lists the meetings you joined on this device, so you can come back to one with a tap while the facilitator is running it, and each meeting has a Remove button if you want it off the list.
+Attendees can still read the board, but nobody can change it until the facilitator opens the meeting again in the same browser, from "Your meetings". A running timer keeps going on the facilitator's clock, so if it runs out while they are away, time's up appears for everyone once they are back, and then everyone carries on. The same happens if the facilitator's phone locks, so Retrobrew asks it to stay awake while the meeting runs. A private window forgets the meeting when it closes. Browsers may clear saved meetings when space runs low, so Retrobrew reminds the facilitator to make a backup now and then. "Your meetings" also lists the meetings you joined on this device, so you can come back to one with a tap while the facilitator is running it (a meeting you saw end is marked as ended), and each meeting has a Remove button if you want it off the list.
 
 **Does it work on a work network or VPN?**
 Usually. Retrobrew needs to reach a few public relays over secure WebSockets, the same kind of connection many chat and collaboration tools use. Some company networks and VPNs block these. If yours does, the app says it can't reach the meeting network, and switching to mobile data or a home connection is the quickest fix.
 
 **How many people can take part?**
-Up to 60 people and 60 topics in one meeting. Very long topics or names in some scripts, such as Chinese or emoji, fill a meeting sooner, and Retrobrew says so when it happens. A typical meeting of 15 people and 30 topics uses about a quarter of the room. Lean Coffee works best for groups of about 5 to 15.
+A meeting can have up to 50 people and 60 topics. Very long topics or names fill a meeting sooner, and Retrobrew says so when the meeting is full. A typical meeting of 15 people and 30 topics uses about a quarter of the room. Lean Coffee works best for groups of about 5 to 15.
 
 **Why is it free?**
 It's an open-source project with nothing to sell: no adverts, no paid plan and no data. There's no meeting server to pay for either, because each meeting runs in the facilitator's browser.
@@ -229,7 +233,7 @@ It carries the same Open Graph and `twitter:card` tags as the landing page, with
 ## Open choices made
 
 1. **The hero headline is "Let the room set the agenda",** and the page says "Retrobrew" or "you", never "we".
-2. **An extra FAQ, "How many people can take part?",** states the 60-person and 60-topic limits and the size cap.
+2. **An extra FAQ, "How many people can take part?",** states the capacity of 50 people and 60 topics, and that very long topics or names fill a meeting sooner.
 3. **The relays answer names the STUN servers** and message sizes as well as IP addresses and timing, so it is complete.
 4. **The redirect script is `/legacy-link.js`,** blocking, first in `<head>`, and acts only on a fragment containing `b=`.
 5. **The version** is written into the footer at build time and links to `/version.txt`, so it shows with JavaScript off.

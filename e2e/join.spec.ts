@@ -185,6 +185,36 @@ test('a full meeting sends a newcomer back to the join form with the reason, and
   }
 });
 
+test('once the facilitator has answered, the connecting panel is headed "Joining {meeting name}"', async ({ browser }) => {
+  const hostContext = await browser.newContext();
+  const benContext = await browser.newContext();
+  try {
+    const first = await hostContext.newPage();
+    const url = await hostMeeting(first, 'Hana', 'Full meeting');
+    const host = await hostContext.newPage();
+    await host.goto(url);
+    await expect(host.getByText('This meeting is open in another tab.')).toBeVisible();
+    await fillMeeting(host, 60);
+    await host.getByRole('button', { name: 'Take over here' }).click();
+    await expect(host.getByRole('button', { name: /here$/ })).toBeVisible({ timeout: NETWORK_WAIT });
+
+    // Ben is refused, so the facilitator's answer has carried the meeting's name, but he is not on the board.
+    const ben = await benContext.newPage();
+    await ben.goto(url);
+    await ben.getByRole('textbox', { name: 'Your name' }).fill('Ben');
+    await ben.getByRole('button', { name: 'Take part' }).click();
+    await expect(ben.getByRole('alert').filter({ hasText: 'This meeting is full. It can have up to 60 people' })).toBeVisible({ timeout: NETWORK_WAIT });
+    // The facilitator goes, and Ben tries again: the panel names the meeting that last answered, not the bare "Connecting".
+    await hostContext.close();
+    await ben.getByRole('button', { name: 'Take part' }).click();
+    await expect(ben.getByText('Connecting to the facilitator…')).toBeVisible();
+    await expect(ben.getByRole('heading', { level: 1, name: 'Joining Full meeting' })).toBeVisible();
+    await expectNoA11yViolations(ben);
+  } finally {
+    await Promise.all([hostContext.close().catch(() => undefined), benContext.close()]);
+  }
+});
+
 test('a silent rejoin the host refuses forgets the stored name and shows the form, with the name field focused', async ({ browser }) => {
   const hostContext = await browser.newContext();
   const benContext = await browser.newContext();

@@ -15,7 +15,9 @@ import { settle } from '../test/settle';
 import { waitFor } from '../test/wait';
 import { measuredApply } from './measured';
 import { MAX_RESENDS, RESEND_AFTER_MS } from './outbox';
+import { DIRECT_SILENCE_MS } from './host';
 import { REFRESH_MS, RELAY_GAP_MS } from './pacer';
+import { DIRECT_DOWN_MS } from './participant';
 
 const joined = (p: { session: { state: { attendees: Record<string, unknown> } | null }; id: string }) =>
   p.session.state?.attendees[p.id] !== undefined;
@@ -89,6 +91,64 @@ describe('relay bundles', () => {
     await waitFor(() => ann.session.state!.topics.length === 1);
     expect(direct.length).toBeGreaterThan(0);
     await waitFor(() => events.length > before); // sealed and published after the direct snapshot
+    host.stop();
+  });
+
+  it('sends a peer no direct snapshot or pong once its direct path has been silent for 10 s, and reaches it through the relay', async () => {
+    const room = await TestRoom.create();
+    const scheduler = new FakeScheduler(Date.now());
+    const { transport, events } = recordRelay(room, 'host');
+    const host = room.host('host', { transport, scheduler });
+    // Every direct message from the host to Ann. The host answers pings only over the direct path, so none means no pong.
+    let hostToAnnDirect = 0;
+    room.direct.tap = (from, to) => { if (from === 'host' && to === 'Ann') hostToAnnDirect += 1; };
+    let relayToAnn: string[] = [];
+    room.relay.tap = (from, to, data) => { if (from === 'host' && to === 'Ann') void decodeFrame(room.roomKey, data).then((f) => relayToAnn.push(f?.kind ?? 'none')); };
+    const ann = await room.person('Ann', { scheduler });
+    await runUntil(scheduler, () => joined(ann));
+    await runUntil(scheduler, () => host.presence().some((p) => p.peerId === 'Ann' && p.status === 'direct'));
+    // Ann is built without startHeartbeat(), as in most of these tests, so her only pings are the two that answer the
+    // host's views of her join (pingAfterHello: one for her relay hello, one for her direct hello), within 0.2 s of
+    // joining. After them she sends nothing, direct or relayed, while the link stays up. That is the silent direct
+    // path this test wants (the product pings every 5 s, see the next test). The wait must stay under
+    // DIRECT_DOWN_MS: past it Ann herself treats the link as down, and the test would no longer be about the host's
+    // 10 s rule.
+    expect(DIRECT_SILENCE_MS).toBeLessThan(DIRECT_DOWN_MS);
+    await runUntil(scheduler, () => host.presence().some((p) => p.peerId === 'Ann' && p.status === 'relayed'), DIRECT_DOWN_MS);
+    await settle();
+    const directBefore = hostToAnnDirect;
+    const eventsBefore = events.length;
+    relayToAnn = [];
+    await host.local({ type: 'addTopic', text: 'By relay' });
+    await runUntil(scheduler, () => ann.session.state!.topics.length === 1);
+    await run(scheduler, 2000);
+    expect(hostToAnnDirect).toBe(directBefore);
+    expect(events.length).toBeGreaterThan(eventsBefore);
+    expect(relayToAnn).toContain('bundle');
+    host.stop();
+  });
+
+  it('keeps pinging the host over the direct path every 5 s while it is proven, so the host keeps it direct', async () => {
+    const room = await TestRoom.create();
+    const scheduler = new FakeScheduler(Date.now());
+    const host = room.host('host', { transport: room.transport('host'), scheduler });
+    const annToHostDirect: number[] = [];
+    const annToHostRelay: number[] = [];
+    room.direct.tap = (from, to) => { if (from === 'Ann' && to === 'host') annToHostDirect.push(scheduler.now()); };
+    room.relay.tap = (from, to) => { if (from === 'Ann' && to === 'host') annToHostRelay.push(scheduler.now()); };
+    const ann = await room.person('Ann', { scheduler });
+    ann.session.startHeartbeat();
+    await runUntil(scheduler, () => joined(ann));
+    await runUntil(scheduler, () => host.presence().some((p) => p.peerId === 'Ann' && p.status === 'direct'));
+    await settle();
+    const directFrom = annToHostDirect.length;
+    const relayFrom = annToHostRelay.length;
+    await run(scheduler, 22_000);
+    // At least four pings in 22 s, all direct, none through the relay, and the host never sees the path as silent.
+    expect(annToHostDirect.length - directFrom).toBeGreaterThanOrEqual(4);
+    expect(annToHostRelay.length - relayFrom).toBe(0);
+    expect(host.presence().find((p) => p.peerId === 'Ann')?.status).toBe('direct');
+    ann.session.stopHeartbeat();
     host.stop();
   });
 

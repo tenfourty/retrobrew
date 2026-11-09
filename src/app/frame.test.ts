@@ -14,7 +14,11 @@ describe('guideLine', () => {
     expect(guideLine('topics', false, 5)).toBe("Add topics you'd like to talk about, then spend your 5 votes");
     expect(guideLine('topics', true, 5)).toBe('Invite people, add topics and vote. Start the discussion when the votes are in');
     expect(guideLine('discussion', false, 3)).toBe('The facilitator picks the next topic. You can still add topics and vote');
+    expect(guideLine('discussion', false, 3, null)).toBe('The facilitator picks the next topic. You can still add topics and vote');
     expect(guideLine('discussion', true, 3)).toBe('Pick the next topic from To discuss. Everyone can still add topics and vote');
+    expect(guideLine('discussion', false, 3, 7)).toBe('Now discussing #7. You can still add topics and vote');
+    expect(guideLine('discussion', true, 3, 7)).toBe('Pick the next topic from To discuss. Everyone can still add topics and vote');
+    expect(guideLine('topics', false, 5, 7)).toBe("Add topics you'd like to talk about, then spend your 5 votes");
     expect(guideLine('ended', false, 3)).toBe('This meeting has ended');
     expect(guideLine('ended', true, 3)).toBe('This meeting has ended. Copy the outcome or reopen it');
   });

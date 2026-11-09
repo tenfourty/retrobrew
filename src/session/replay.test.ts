@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Bytes } from '../crypto/bytes';
 import { decodeFrame, encodeWire, openEnvelope, sealEnvelope } from '../protocol/envelope';
 import { FakeScheduler } from '../test/fake-scheduler';
@@ -324,4 +324,48 @@ describe('what the host remembers about pings', () => {
     expect(seen.signers()).toEqual([]);
     host.stop();
   }, 60_000);
+});
+
+// docs/product/sync-protocol.md, Pings: a participant "keeps at most 8 unanswered t0s".
+describe('unanswered pings', () => {
+  it('a participant remembers only its 8 newest direct pings: a late pong for an older one is ignored', async () => {
+    const { room, scheduler, host, ann } = await meeting();
+    // The host's direct views still arrive, which keeps the direct path proven, but its pongs are lost, so every direct
+    // ping stays unanswered. The loss rule can only look at a frame synchronously, so it goes by size (a pong is about
+    // 260 bytes, a view 547 or more); the test then opens every frame it dropped and requires each to be a pong.
+    const dropped: Bytes[] = [];
+    const sentDirect: Bytes[] = [];
+    room.direct.tap = (from, to, data) => { if (from === 'Ann' && to === 'host') sentDirect.push(data); };
+    let late = false;
+    room.direct.lose = (from, to, data) => {
+      const lost = from === 'host' && to === 'Ann' && data.length < 400 && !late;
+      if (lost) dropped.push(data);
+      return lost;
+    };
+    await run(scheduler, 60_000);
+    room.direct.tap = undefined;
+    const t0s = (await pingsIn(room, sentDirect)).map((p) => p.t0);
+    expect(t0s.length).toBeGreaterThanOrEqual(10);
+    expect(dropped.length).toBeGreaterThanOrEqual(10);
+    for (const data of dropped) {
+      const frame = await decodeFrame(room.roomKey, data);
+      const opened = frame?.kind === 'envelope' ? await openEnvelope(frame.env) : null;
+      expect((opened?.message as { t?: string } | undefined)?.t).toBe('pong');
+    }
+    const addSample = vi.spyOn(ann.session.clock, 'addSample');
+    const latePong = async (t0: number) => {
+      const before = addSample.mock.calls.length;
+      const pong = await encodeWire(room.roomKey, await sealEnvelope(room.hostSigner, { t: 'pong', t0, t1: scheduler.now() }));
+      late = true;
+      room.direct.deliver('host', 'Ann', pong);
+      late = false;
+      await settle(HEAVY_SETTLE_MS); // the fake clock stands still, so no new ping pushes an old one out
+      return addSample.mock.calls.length - before;
+    };
+    // The older ones were forgotten; the newest 8 still wait for their pongs, and each counts once.
+    for (const t0 of t0s.slice(0, -8)) expect(await latePong(t0), `t0 ${t0}`).toBe(0);
+    for (const t0 of t0s.slice(-8)) expect(await latePong(t0), `t0 ${t0}`).toBe(1);
+    ann.session.stopHeartbeat();
+    host.stop();
+  }, 120_000);
 });

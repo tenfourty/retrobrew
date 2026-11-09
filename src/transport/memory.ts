@@ -100,6 +100,11 @@ export class MemoryTransport implements Transport {
   follow(focus: () => ResumeFocus): void {
     this.followed = focus;
   }
+  // The peers a facilitator expects, as it names them.
+  expected?: () => string[];
+  expectPeers(peers: () => string[]): void {
+    this.expected = peers;
+  }
   leave(): void {
     this.network.drop(this.selfId);
     this.connected.clear();

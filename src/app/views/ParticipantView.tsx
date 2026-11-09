@@ -9,12 +9,17 @@ import { Announcer, useAnnounce } from '../announcer';
 import { ACTION_LABEL, bannerTone, participantSignals } from '../banner-choice';
 import { COPY, connectingCopy, outcomeMs, participantBanner, type Banner as BannerData, type BannerAction } from '../banners';
 import { getDeviceSigner, rememberName } from '../identity';
-import { forgetJoined, joinedName, joinRefusalText, joiningTitle, rememberJoined } from '../joined';
+import { forgetJoined, joinedName, joinedRecordFor, joinRefusalText, joiningTitle, rememberJoined } from '../joined';
 import { startParticipating, type ParticipantHandle } from '../participant-controller';
 import { unlockAudio } from '../sounds';
 import { viewWhileHostAway } from '../host-away';
 import { StartCancelled } from '../startup';
 import { forced } from '../test-hooks';
+import { clearCanary, noteError } from '../../feedback/errors';
+import { FEEDBACK_BUILT, feedbackEnabled } from '../feedback-gate';
+import { FeedbackButton, FeedbackFooter, useErrorTrouble, useFeedbackSheet, useTroubleSignals } from '../feedback';
+import { registerBoardStrings, registerFragmentStrings } from '../feedback-canary';
+import { NO_MEETING, reportPhase, type PageContext } from '../feedback-inputs';
 import { NAME_HINT } from './Home';
 import { MeetingScreen, type Refusal } from './MeetingScreen';
 import { StatePage, StatePanel } from './StatePage';
@@ -63,6 +68,10 @@ function ParticipantBody({ link, store }: { link: ShareLink; store: BoardStore }
   // The remembered name arrives late in a fresh browser (it first makes the device's key), so it fills the field only if
   // the person hasn't typed in it yet; otherwise it would wipe what they typed just before they press Take part.
   // A device that has joined this meeting before skips the form and rejoins at once with the name it used.
+  // The link's own strings go to the scrubber first, so an error while starting cannot quote them.
+  useEffect(() => {
+    if (FEEDBACK_BUILT && feedbackEnabled()) registerFragmentStrings(location.hash);
+  }, []);
   useEffect(() => {
     if (remembered !== null) void start(remembered);
     else void getDeviceSigner(store).then((d) => setName((typed) => typed || (d.name ?? '')));
@@ -105,6 +114,7 @@ function ParticipantBody({ link, store }: { link: ShareLink; store: BoardStore }
     } catch (error) {
       // A view that has gone shows nothing, whatever went wrong.
       if (error instanceof StartCancelled || controller.signal.aborted) return;
+      if (FEEDBACK_BUILT && feedbackEnabled()) noteError('startup', error);
       setFailed(error instanceof Error ? error.message : String(error));
     }
   };
@@ -133,16 +143,47 @@ function ParticipantBody({ link, store }: { link: ShareLink; store: BoardStore }
 
   const session = handle.current?.session;
   const refusedText = joinRefusalText(session?.joinRefused ?? null);
-  const onStateAction = (action: BannerAction) => { if (action === 'retry') session?.retry(); else location.reload(); };
+  const boardShown = Boolean(session?.state && session.you && session.isAttendee);
+  // What this page tells a feedback report about itself: named signals only (feedback-inputs.ts).
+  const context = (): PageContext => {
+    if (!session) return { ...NO_MEETING, page: 'state', role: 'participant', connection: 'connecting' };
+    const page = boardShown ? 'participant' : 'state';
+    return {
+      page, role: 'participant', phase: session.state ? reportPhase(session.state.phase) : 'none', connection: session.connection,
+      relays: session.relayHealth(), directPeers: session.directPeerCount(), people: session.state?.online.length ?? 0,
+    };
+  };
+  // The connecting panel's 60 s stage counts as trouble at once; a lost network only after the latch's delay.
+  useTroubleSignals({
+    startup: failed !== null,
+    connectionNow: joined && !boardShown && !failed && !refusedText && session !== undefined && Date.now() - session.connectingSince >= 60_000,
+    connectionAfterDelay: session?.connection === 'noRelays',
+  });
+  const errorTrouble = useErrorTrouble();
+  // The scrubber learns the board's words after every render (the state changes as people add topics and join), and forgets them with the session.
+  useEffect(() => {
+    if (FEEDBACK_BUILT && feedbackEnabled() && session?.state) registerBoardStrings(session.state, location.hash);
+  });
+  useEffect(() => (FEEDBACK_BUILT ? clearCanary : undefined), []);
+  const feedback = useFeedbackSheet(context);
+  const footer = <><FeedbackFooter place="state" wiring={feedback.wiring} open={feedback.open} />{feedback.element}</>;
+  const onStateAction = (action: BannerAction) => {
+    if (action === 'retry') session?.retry();
+    else if (action === 'feedback') feedback.open();
+    else location.reload();
+  };
   // Joined: the device remembers it, so coming back skips the form.
   const me = session?.isAttendee && session.you ? session.state?.attendees[session.you] : undefined;
   const boardName = session?.state?.boardName;
+  // When this page sees the ended view it notes it on the entry, so "Your meetings" stops saying the meeting is still to
+  // open (joinedRecordFor says which time it keeps).
+  const ended = session?.state?.phase === 'ended';
   useEffect(() => {
     if (!me) return;
     rememberJoined(link, me.name);
     // "Your meetings" lists it too: the name, the link the person was given and the name they joined under.
-    if (boardName) void store.putJoined({ boardId: link.boardId, boardName, link: buildShareLink(location.href, link), name: me.name, joinedAt: Date.now() }).catch(() => undefined);
-  }, [me?.name, boardName]);
+    if (boardName && session?.state) void store.putJoined(joinedRecordFor({ boardId: link.boardId, boardName, link: buildShareLink(location.href, link), name: me.name }, session.state, Date.now())).catch(() => undefined);
+  }, [me?.name, boardName, ended]);
   // A silent rejoin that the host refuses forgets the stored name, so the form's name sticks once it is entered again.
   const wasRemembered = useRef(remembered !== null);
   useEffect(() => {
@@ -168,7 +209,7 @@ function ParticipantBody({ link, store }: { link: ShareLink; store: BoardStore }
 
   if (!joined || refusedText) {
     return (
-      <StatePage>
+      <StatePage footer={footer}>
         <form className="app-panel join-panel" noValidate onSubmit={join}>
           <h1 className="app-panel-title">You're invited to a Lean Coffee</h1>
           <p>Choose the name the group will see. The board opens as soon as the facilitator's device answers.</p>
@@ -189,18 +230,21 @@ function ParticipantBody({ link, store }: { link: ShareLink; store: BoardStore }
   }
   if (failed !== null) {
     return (
-      <StatePage>
+      <StatePage footer={footer}>
         <StatePanel alert>
           <p>{failed}</p>
-          <div><Button variant="secondary" onClick={() => { actedOnControl.current = true; void start(name.trim()); }}>Retry</Button></div>
+          <div className="state-actions">
+            <Button variant="secondary" onClick={() => { actedOnControl.current = true; void start(name.trim()); }}>Retry</Button>
+            {feedback.wiring ? <FeedbackButton place="failed" troubled size="md" onClick={feedback.open} /> : null}
+          </div>
         </StatePanel>
       </StatePage>
     );
   }
-  const banner = session ? participantBanner({ ...participantSignals(session, session.state?.phase === 'ended'), ...forced().participant }) : null;
+  const banner = session ? participantBanner({ ...participantSignals(session, session.state?.phase === 'ended'), ...forced().participant, errorTrouble }) : null;
   // A version mismatch can arrive before any view: the host only ever sends this page a protocol 1 snapshot.
   if (session?.mismatch && !session.state) {
-    return <StatePage>{banner ? <StateBanner banner={banner} onAction={onStateAction} /> : null}</StatePage>;
+    return <StatePage footer={footer}>{banner ? <StateBanner banner={banner} onAction={onStateAction} /> : null}</StatePage>;
   }
   // Until the host lists this person as an attendee (a first join, or a retry after a refusal) there is no board to use.
   if (!session?.state || !session.you || !session.isAttendee) {
@@ -209,7 +253,7 @@ function ParticipantBody({ link, store }: { link: ShareLink; store: BoardStore }
     const before = banner && banner.text !== COPY.hostOffline ? banner : null;
     const title = joiningTitle(session?.state?.boardName);
     return (
-      <StatePage>
+      <StatePage footer={footer}>
         {before ? <StateBanner banner={before} onAction={onStateAction} /> : null}
         <StatePanel>
           {title ? <h1 className="app-panel-title">{title}</h1> : null}
@@ -231,7 +275,7 @@ function ParticipantBody({ link, store }: { link: ShareLink; store: BoardStore }
           void session.sendSeq(cmd).then((seq) => { if (seq !== null) places.current.set(seq, place); });
         }} refusal={refusal} readOnly={readOnly} outcome={outcome}
         onRename={(name) => { session.takePart(name); void rememberName(store, name); rerender(); }}
-        banner={banner ?? null} onBannerAction={onStateAction} />
+        banner={banner ?? null} onBannerAction={onStateAction} feedback={feedback.wiring} />
     </>
   );
 }

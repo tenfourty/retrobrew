@@ -1,8 +1,8 @@
-import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import {
-  addTopic, APP_PATH, banner, createMeeting, discussTopic, fillMeeting, forceSignals, hostMeeting, joinMeeting, NETWORK_WAIT, openPeople,
+  addTopic, APP_PATH, banner, createMeeting, discussTopic, feedbackStub, fillMeeting, forceFeedback, forceSignals, hostMeeting, joinMeeting, NETWORK_WAIT, openPeople,
   outcomeLine, realLength, START_BUTTON, THEMES, timeUpSheet, topicCard, withRehearsal,
 } from '../helpers';
 
@@ -408,6 +408,73 @@ async function states(browser: Browser, width: Width): Promise<void> {
   }
 }
 
+// The feedback sheet in its states, and the meeting page with the "something went wrong" banner and the sheet opened from it.
+async function feedbackStates(browser: Browser, request: APIRequestContext, width: Width): Promise<void> {
+  const viewport = WIDTHS[width];
+  const stub = feedbackStub(request);
+  await stub.reset();
+  const context = await browser.newContext({ viewport });
+  const shot = shooter(width, 'd');
+  const sheet = (page: Page): Locator => page.getByRole('dialog', { name: 'Send feedback' });
+  const message = (page: Page): Locator => sheet(page).getByRole('textbox', { name: 'Your message' });
+  const email = (page: Page): Locator => sheet(page).getByRole('textbox', { name: "Your email, only if you'd like a reply" });
+  const send = (page: Page): Locator => sheet(page).getByRole('button', { name: 'Send', exact: true });
+  try {
+    const page = await context.newPage();
+    await page.goto(APP_PATH);
+    await page.getByRole('button', { name: 'Send feedback' }).click();
+    await expect(sheet(page)).toBeVisible();
+    await shot(page, 'feedback-sheet-empty');
+    await sheet(page).getByRole('button', { name: 'An idea' }).click();
+    await message(page).fill('It would help to see the timer on the lock screen.');
+    await sheet(page).evaluate((dialog) => dialog.querySelectorAll('details').forEach((d) => { d.open = true; }));
+    await shot(page, 'feedback-sheet-report-open');
+    await email(page).fill('not an address');
+    await message(page).focus();
+    await expect(sheet(page).getByText("That doesn't look like an email address")).toBeVisible();
+    await shot(page, 'feedback-sheet-email-invalid');
+    await email(page).fill('reader@example.org');
+    await message(page).fill('See https://retrobrew.app/app/#b=abcdefgh12345678&k=abcdefghijklmnop1234&h=xxxxxxxx');
+    await expect(sheet(page).getByText('That looks like a meeting link.', { exact: false })).toBeVisible();
+    await shot(page, 'feedback-sheet-link-refused');
+    await message(page).fill('It would help to see the timer on the lock screen.');
+
+    await stub.setMode('fail');
+    await send(page).click();
+    await expect(sheet(page).getByRole('alert').filter({ hasText: "Couldn't send that." })).toBeVisible();
+    await shot(page, 'feedback-sheet-failed');
+    await stub.setMode('ratelimit');
+    await send(page).click();
+    await expect(sheet(page).getByRole('alert').filter({ hasText: 'Lots of feedback is arriving' })).toBeVisible();
+    await shot(page, 'feedback-sheet-rate-limited');
+    await context.setOffline(true);
+    await expect(sheet(page).getByRole('alert').filter({ hasText: "You're offline" })).toBeVisible();
+    await shot(page, 'feedback-sheet-offline');
+    await context.setOffline(false);
+    await stub.reset();
+    await expect(send(page)).toBeEnabled();
+    await send(page).click();
+    await expect(sheet(page).getByRole('status').filter({ hasText: 'Thanks. Your feedback is sent.' })).toBeVisible();
+    await shot(page, 'feedback-sheet-sent');
+    await page.close();
+
+    // An uncaught error: the banner with its action, then the sheet it opens (with the reason and "Something broke").
+    const meeting = await context.newPage();
+    await forceSignals(meeting, { host: { storageNotice: false } });
+    await forceFeedback(meeting, { throwOnLoad: true });
+    await hostMeeting(meeting, 'Hana', 'Team Lean Coffee');
+    const notice = meeting.locator('.mtg-banner');
+    await expect(notice).toContainText('Something went wrong on this page.', { timeout: NETWORK_WAIT });
+    await shot(meeting, 'banner-went-wrong');
+    await notice.getByRole('button', { name: 'Send feedback' }).click();
+    await expect(sheet(meeting)).toBeVisible();
+    await shot(meeting, 'feedback-sheet-from-trouble');
+  } finally {
+    await stub.reset();
+    await context.close().catch(() => undefined);
+  }
+}
+
 test.beforeAll(() => {
   // Empty the folder's pictures first, so a stale or renamed screen never reaches index.html.
   for (const width of Object.keys(WIDTHS)) {
@@ -429,10 +496,11 @@ ${rows}
 });
 
 for (const width of Object.keys(WIDTHS) as Width[]) {
-  test(`every screen at ${width} width in all four themes`, async ({ browser }) => {
+  test(`every screen at ${width} width in all four themes`, async ({ browser, request }) => {
     test.setTimeout(25 * 60_000);
     await walk(browser, width);
     await shortMeeting(browser, width);
     await states(browser, width);
+    await feedbackStates(browser, request, width);
   });
 }

@@ -1,6 +1,6 @@
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { MAX_TOPICS } from '../../src/engine/limits';
-import { collectPageErrors, hostMeeting, joinMeeting, NETWORK_WAIT, realLength, START_BUTTON, timeUpSheet } from '../helpers';
+import { collectPageErrors, hostMeeting, joinMeeting, NETWORK_WAIT, realLength, relayHealthOf, START_BUTTON, timeUpSheet } from '../helpers';
 
 // Endurance: a facilitator and five participants in a
 // rehearsal meeting for 50 minutes, about a hundred time-up rounds, checking that every board stays in sync, that
@@ -107,6 +107,51 @@ async function boardOf(page: Page): Promise<string[]> {
     })), COLUMNS);
 }
 
+// The lines that differ between two boards, one line per difference ("- " only in expected, "+ " only on the page).
+function boardDiff(expected: string[], actual: string[]): string[] {
+  return [...expected.filter((l) => !actual.includes(l)).map((l) => `- ${l}`), ...actual.filter((l) => !expected.includes(l)).map((l) => `+ ${l}`)];
+}
+
+// The page's direct peers as its Trystero room lists them (e2e builds), for a failure message.
+async function directPeersOf(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const peers = (window as unknown as { __rbDirectPeers?: () => string[] }).__rbDirectPeers;
+    return peers ? `${peers().length} direct peer(s)` : 'no direct-peers hook';
+  }).catch((e: unknown) => `unreadable: ${String(e)}`);
+}
+
+// A diagnostic read that gives up after 5 s, so a stuck page cannot hide the failure being reported. A read that
+// throws or times out yields `unreadable(why)` instead.
+async function within<T>(read: Promise<T>, unreadable: (why: string) => T): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<T>((resolve) => { timer = setTimeout(() => resolve(unreadable('timeout')), 5_000); });
+  try {
+    return await Promise.race([read.catch((e: unknown) => unreadable(String(e))), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Polls every person's board until it equals `expected` (the host's, read earlier). A person who is still different
+// after NETWORK_WAIT is named, with how their board differs, the host's board as it reads now (a host that moved on
+// since `expected` was read says the wait read it too early), and each page's relay health and direct peers.
+async function expectBoardsAgree(host: Page, people: Page[], expected: string[], cycle: number): Promise<void> {
+  const names = people.map((_, i) => PEOPLE[i]);
+  const last: string[][] = people.map(() => []);
+  const results = await Promise.all(people.map((p, i) => expect.poll(async () => (last[i] = await boardOf(p)), { timeout: NETWORK_WAIT }).toEqual(expected).then(() => null, (e: unknown) => e)));
+  const diverged = results.flatMap((r, i) => (r ? [i] : []));
+  if (diverged.length === 0) return;
+  const hostNow = await within(boardOf(host), (why) => [`unreadable: ${why}`]);
+  const hostDiff = boardDiff(expected, hostNow);
+  const lines = [`After cycle ${cycle}, ${diverged.map((i) => names[i]).join(', ')} of ${names.length} people still differ from the host's board read at the end of the cycle.`];
+  lines.push(`Host now ${hostDiff.length === 0 ? 'still equals' : 'differs from'} that board: ${hostDiff.join(' | ') || 'no difference'}`);
+  for (const i of diverged) lines.push(`${names[i]} differs: ${boardDiff(expected, last[i]).join(' | ')}`);
+  for (const [who, page] of [['host', host], ...people.map((p, i) => [names[i], p] as const)] as Array<[string, Page]>) {
+    lines.push(`${who}: relays ${await within(relayHealthOf(page), (why) => `unreadable: ${why}`)}; ${await within(directPeersOf(page), (why) => `unreadable: ${why}`)}`);
+  }
+  throw new Error(lines.join('\n'), { cause: results[diverged[0]] });
+}
+
 // The page's JavaScript heap after a garbage collection, in bytes.
 async function heapAfterGc(page: Page): Promise<number> {
   const cdp = await page.context().newCDPSession(page);
@@ -187,7 +232,12 @@ test('a facilitator and five participants run a rehearsal meeting for 50 minutes
         if (!keepGoing && !finish) {
           await host.keyboard.press('Escape');
           // Time is up, so there is no timer to stop: Return topic is in the Facilitator panel.
+          const returning = await host.locator('section[aria-label="Discussing"] .rb-card-text').first().textContent();
           await host.getByRole('complementary', { name: 'Facilitator' }).getByRole('button', { name: 'Return topic' }).click();
+          // The host applies the command asynchronously (size check, save, then render), so wait for its own board to
+          // show the topic back in To discuss before it is read as the board everyone must agree on.
+          await expect(host.locator('section[aria-label="Discussing"] article')).toHaveCount(0, { timeout: NETWORK_WAIT });
+          await expect(host.locator('section[aria-label="To discuss"] article').first().locator('.rb-card-text')).toHaveText(returning ?? '', { timeout: NETWORK_WAIT });
           break;
         }
         const decision = timeUpSheet(host).locator('.mtg-decision').getByRole('button');
@@ -202,7 +252,7 @@ test('a facilitator and five participants run a rehearsal meeting for 50 minutes
       expect(expected, 'every topic is on the board').toHaveLength(topics);
       // The totals are real: every line has one, and they differ (5, 4, 3, 2, 1 and zeros).
       expect(new Set(totalsOf(expected)).size, 'distinct vote totals').toBeGreaterThanOrEqual(3);
-      await Promise.all(people.map((p) => expect.poll(() => boardOf(p), { timeout: NETWORK_WAIT }).toEqual(expected)));
+      await expectBoardsAgree(host, people, expected, cycles);
     }
 
     expect(Date.now(), `the topics ran out after ${cycles} cycles (${finished} finished), before the ${MINUTES} minutes were up`).toBeGreaterThanOrEqual(deadline);

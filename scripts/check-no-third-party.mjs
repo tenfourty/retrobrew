@@ -11,7 +11,15 @@ const TEST_RELAYS = ['ws://127.0.0.1', 'ws://localhost'];
 // Nor the hooks only browser-battery builds carry: the window hooks (src/app/e2e-hooks.ts) and the forced-state setting
 // the tab's sessionStorage holds (rb-e2e-force, src/app/test-hooks.ts). Their reads sit behind a build-time mode check,
 // so any other build compiles them out.
-const E2E_HOOKS = ['__rbRelayHealth', '__rbDirectPeers', 'rb-e2e-force', 'A browser test stopped the meeting from starting'];
+// The feedback ones: the tab's sessionStorage setting and window log (rb-e2e-feedback, __rbFeedbackLog), and the stub's
+// test routes (/__feedback), which only the dev server and the e2e preview serve.
+const E2E_HOOKS = ['__rbRelayHealth', '__rbDirectPeers', 'rb-e2e-force', 'A browser test stopped the meeting from starting', 'rb-e2e-feedback', '__rbFeedbackLog', '/__feedback'];
+
+// What only the feedback feature carries: its send path as a string literal and its sheet and button copy. A build made
+// without FEEDBACK_ORIGIN compiles the feature out (src/app/feedback-gate.ts, FEEDBACK_BUILT), so none of it may be in
+// the app's scripts; a build made with it must carry the send path. Decided by the same FEEDBACK_ORIGIN the build read.
+const FEEDBACK_PATH_LITERAL = /["'`]\/feedback["'`]/;
+const FEEDBACK_COPY_MARKER = 'Send feedback';
 
 // Every page the site serves. A page missing from the build is a problem too.
 export const PAGES = ['index.html', 'lean-coffee/index.html', 'app/index.html'];
@@ -102,18 +110,36 @@ function appCodeProblems(dir, page, text) {
     const resolved = posix.normalize(posix.join(posix.dirname(page), normalise(written))).replace(/^\/+/, '');
     if (!PUBLIC_SCRIPTS.includes(resolved)) hits.push(`${file}: a public page loads ${written}`);
   }
+  hits.push(...feedbackProblems(file, text));
   return hits;
 }
 
-export function findProblems(dir) {
+// The public pages and their two scripts stay inert about feedback: the only way in is the /app/#feedback link.
+// No request, and no mention of the endpoint path.
+function feedbackProblems(file, text) {
   const hits = [];
+  if (/\bfetch\s*\(/.test(text)) hits.push(`${file}: a public page calls fetch(`);
+  if (/\/feedback\b/.test(text)) hits.push(`${file}: a public page names the /feedback endpoint (only the /app/#feedback link is allowed)`);
+  return hits;
+}
+
+export function findProblems(dir, feedbackOrigin = process.env.FEEDBACK_ORIGIN ?? '') {
+  const hits = [];
+  const scripts = [];
   // /version.txt says which build is live; the landing and guide footers link to it.
   const version = join(dir, 'version.txt');
   if (!existsSync(version)) hits.push(`${version}: missing from the build`);
   else if (!readFileSync(version, 'utf8').trim()) hits.push(`${version}: empty`);
+  // A production image must name its commit: "unknown" and "dev" are for builds nobody deploys.
+  else if (process.env.RETROBREW_LAUNCH === '1' && !/^[0-9a-f]{7,40}$/.test(readFileSync(version, 'utf8').trim())) {
+    hits.push(`${version}: not a commit ID (RETROBREW_LAUNCH=1 needs the REVISION build argument)`);
+  }
   for (const page of PAGES) if (!existsSync(join(dir, page))) hits.push(`${join(dir, page)}: page missing from the build`);
   for (const page of PUBLIC_PAGES) {
     if (existsSync(join(dir, page))) hits.push(...appCodeProblems(dir, page, readFileSync(join(dir, page), 'utf8')));
+  }
+  for (const script of PUBLIC_SCRIPTS) {
+    if (existsSync(join(dir, script))) hits.push(...feedbackProblems(join(dir, script), readFileSync(join(dir, script), 'utf8')));
   }
   const files = walk(dir);
   for (const file of files.filter((f) => /\.(html|js|css|svg|webmanifest|json|xml)$/.test(f))) {
@@ -124,6 +150,11 @@ export function findProblems(dir) {
       hits.push(`${file}: still links the placeholder ${PLACEHOLDER_URL} (RETROBREW_LAUNCH=1)`);
     }
     for (const relay of TEST_RELAYS) if (text.includes(relay)) hits.push(`${file}: test relay ${relay}`);
+    if (file.endsWith('.js')) scripts.push(text);
+    if (file.endsWith('.js') && !feedbackOrigin.trim()) {
+      if (FEEDBACK_PATH_LITERAL.test(text)) hits.push(`${file}: the feedback send path in a build without FEEDBACK_ORIGIN (the feature must be compiled out)`);
+      if (text.includes(FEEDBACK_COPY_MARKER)) hits.push(`${file}: the feedback copy "${FEEDBACK_COPY_MARKER}" in a build without FEEDBACK_ORIGIN (the feature must be compiled out)`);
+    }
     for (const hook of E2E_HOOKS) if (text.includes(hook)) hits.push(`${file}: browser-battery hook ${hook}`);
     if (file.endsWith('.html')) {
       if (text.includes('%RB_')) hits.push(`${file}: an unfilled %RB_…% build value`);
@@ -135,6 +166,7 @@ export function findProblems(dir) {
       for (const [, url] of text.matchAll(/"((?:[a-z][a-z0-9+.\-]*:)?(?:\/|\\){2}[^"]*)"/gi)) if (foreign(url)) hits.push(`${file}: loads ${url}`);
     }
   }
+  if (feedbackOrigin.trim() && !scripts.some((t) => FEEDBACK_PATH_LITERAL.test(t))) hits.push(`${dir}: FEEDBACK_ORIGIN is set but no script carries the feedback send path`);
   if (!files.some((f) => f.endsWith('.woff2'))) hits.push(`${dir}: no bundled .woff2 fonts`);
   return hits;
 }

@@ -13,6 +13,7 @@ import { fresh } from '../test/hello';
 import { BOARD, TestRoom } from '../test/sessions';
 import { HEAVY_SETTLE_MS, settle } from '../test/settle';
 import { waitFor } from '../test/wait';
+import { COALESCE_MS } from './pacer';
 import { PEER_RECORD_TTL_MS, PEER_RECORDS_PER_SIGNER, type HostSession } from './host';
 import { PRUNE_AFTER_MS, recordOutcome } from './tabs';
 
@@ -164,6 +165,38 @@ describe('presence', () => {
     expect(host.presence().find((p) => p.participantId === ann.id)?.status).toBe('offline');
     await ann.session.ping();
     await waitFor(() => host.online().includes(ann.id));
+  });
+
+  it('sends someone coming back online with the next flush, without a new seq or a save', async () => {
+    const room = await TestRoom.create();
+    const scheduler = new FakeScheduler(Date.now());
+    let saves = 0;
+    const host = room.host('host', { scheduler, save: async (saved) => { saves += 1; room.saved = structuredClone(saved); } });
+    const ann = await room.person('Ann', { scheduler });
+    const bob = await room.person('Bob', { scheduler });
+    bob.session.startHeartbeat(); // Bob stays online
+    await stepUntil(scheduler, () => joined(ann) && joined(bob));
+    await step(scheduler, 1000); // the pings that follow the joins' replies land too
+    ann.session.stopHeartbeat(); // Ann says nothing from here, so she drops out of `online`
+    await step(scheduler, 16_000);
+    expect(host.online()).not.toContain(ann.id);
+    expect(host.online()).toContain(bob.id);
+    // Line up just after a refresh, so none falls inside the window below.
+    const toBob: number[] = [];
+    room.direct.tap = room.relay.tap = (from, to) => { if (from === 'host' && to === 'Bob') toBob.push(scheduler.now()); };
+    await stepUntil(scheduler, () => toBob.length > 0);
+    await step(scheduler, 1000);
+    const seq = host.version.seq;
+    const savesBefore = saves;
+    toBob.length = 0;
+    const pingedAt = scheduler.now();
+    await ann.session.ping();
+    await step(scheduler, 300);
+    expect(host.online()).toContain(ann.id);
+    expect(toBob.length).toBeGreaterThan(0); // Bob was sent the change, long before the next 5 s refresh
+    expect(toBob[0] - pingedAt).toBeLessThanOrEqual(COALESCE_MS);
+    expect(host.version.seq).toBe(seq);
+    expect(saves).toBe(savesBefore);
   });
 
   it('ignores a ping that names another meeting, as it does a hello or a command', async () => {

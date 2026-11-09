@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { timeUpWaiting, viewWhileHostAway } from './host-away';
+import { HOST_AWAY_PEOPLE_NOTE, showHostAwayNote, timeUpWaiting, viewWhileHostAway } from './host-away';
 
 describe('viewWhileHostAway', () => {
   it('keeps only the guest in the head count', () => {
@@ -22,5 +22,20 @@ describe('timeUpWaiting', () => {
     expect(timeUpWaiting(false, { timer, vote: null }, 0)).toBe(false);
     expect(timeUpWaiting(true, { timer: null, vote: null }, null)).toBe(false);
     expect(timeUpWaiting(true, { timer, vote: {} as never }, 0)).toBe(false);
+  });
+});
+
+describe('HOST_AWAY_PEOPLE_NOTE', () => {
+  it('explains the short list in one sentence', () => {
+    expect(HOST_AWAY_PEOPLE_NOTE).toBe("Only the facilitator's device knows who is here, so you see only yourself until it is back.");
+  });
+});
+
+describe('showHostAwayNote', () => {
+  it('shows for a guest while the facilitator is away, and never for the facilitator', () => {
+    expect(showHostAwayNote(false, true)).toBe(true);
+    expect(showHostAwayNote(false, false)).toBe(false);
+    expect(showHostAwayNote(false, undefined)).toBe(false);
+    expect(showHostAwayNote(true, true)).toBe(false);
   });
 });

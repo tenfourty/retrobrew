@@ -5,6 +5,9 @@ import { Badge } from '../../ui/badge';
 import { Button, ModeSwitch } from '../../ui/components';
 import { boardIsHosted } from '../browser';
 import { exclusive } from '../exclusive';
+import { FeedbackFooter, useFeedbackSheet } from '../feedback';
+import type { Arrival } from '../feedback-arrival';
+import { NO_MEETING } from '../feedback-inputs';
 import { markJustCreated } from '../handoff';
 import { createBoardRecord, recordLink } from '../host-controller';
 import { getDeviceSigner, rememberName } from '../identity';
@@ -21,7 +24,7 @@ export const nameHint = (name: string) => `You are ${name}. ${NAME_HINT}`;
 
 // The app home (docs/product/mvp-screens.md, The app home): start a meeting, or open one started in this browser.
 // /app/#start focuses the form; /app/#start&rehearsal creates a rehearsal board.
-export function Home({ store, start = false, rehearsal = false }: { store: BoardStore; start?: boolean; rehearsal?: boolean }) {
+export function Home({ store, start = false, rehearsal = false, arrival = null }: { store: BoardStore; start?: boolean; rehearsal?: boolean; arrival?: Arrival | null }) {
   const [boards, setBoards] = useState<BoardRecord[]>([]);
   const [joined, setJoined] = useState<JoinedRecord[]>([]);
   const [removing, setRemoving] = useState<MeetingRow | null>(null);
@@ -33,6 +36,11 @@ export function Home({ store, start = false, rehearsal = false }: { store: Board
   const [fileError, setFileError] = useState('');
   const [busy, setBusy] = useState(false);
   const single = useRef(exclusive()).current;
+  // Arriving by the `#feedback` link opens the sheet; closing it drops the fragment, so a reload does not open it again.
+  const feedback = useFeedbackSheet(() => ({ ...NO_MEETING, page: arrival?.from ?? 'home' }), {
+    openOn: arrival,
+    onClose: () => { if (arrival) history.replaceState(null, '', location.pathname + location.search); },
+  });
   const meetingInput = useRef<HTMLInputElement>(null);
   const nameInput = useRef<HTMLInputElement>(null);
 
@@ -178,6 +186,8 @@ export function Home({ store, start = false, rehearsal = false }: { store: Board
           <p className="rb-hint">This browser can delete meetings you haven't opened for a while. Back up each meeting when it ends.</p>
         </section>
       </div>
+      <FeedbackFooter place="home" wiring={feedback.wiring} open={feedback.open} />
+      {feedback.element}
       <ConfirmDialog open={removing !== null} title={removing ? removeTitle(removing) : ''} onCancel={() => setRemoving(null)}
         returnFocusTo={removeOpener.current} focusCancel body={<p>{removing ? removeBody(removing) : ''}</p>}
         actions={[{ label: 'Remove', variant: 'danger', onClick: () => { if (removing) void remove(removing); } }]} />

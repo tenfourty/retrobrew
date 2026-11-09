@@ -48,7 +48,9 @@ const documentVisibility: PageVisibility = {
 // lock ends a connection by ICE timeout, some seconds after the page is back.
 const RESUME_WATCH_MS = 30_000;
 
-// A participant whose link to the host drops while it is visible rejoins for it at most this often.
+// A participant whose link to the host drops while it is visible rejoins for it at most this often. The
+// facilitator's page, at a resume with a participant it expects missing from its room, rejoins at most this often too:
+// a participant with no direct path at all would otherwise cost it a rejoin at every lock.
 const HOST_LINK_REJOIN_GAP_MS = 60_000;
 
 // A participant whose page was hidden within this long of entering the room, with its host not listed in it, may have
@@ -236,6 +238,11 @@ export function createTrysteroTransport(
   let watch: { until: number; focus: ResumeFocus | undefined } | null = null;
   // A participant's way to name the host it cares about, set by `follow`; the facilitator's page has none.
   let followed: (() => ResumeFocus) | undefined;
+  // The facilitator's way to name the participants that joined it lately, set by `expectPeers`.
+  let expectedPeers: (() => string[]) | undefined;
+  // Those it named when the page was last hidden: the lock cuts the page off from the relays, so what it heard of
+  // before the lock is what a link may have been forming for.
+  let expectedAtHide: string[] = [];
   let hostLinkRejoinedAt = Number.NEGATIVE_INFINITY;
   // The connection of each peer this room reported gone and has not reported back, as it was when the peer joined.
   // Trystero keeps such a connection as a shared one (for 2 minutes, or until it fails) and gives it to the next room,
@@ -262,6 +269,7 @@ export function createTrysteroTransport(
     hiddenSinceResume = true;
     hiddenAtMs = Date.now();
     hiddenAfterEnterMs = hiddenAtMs - enteredAt;
+    expectedAtHide = expectedPeers?.() ?? [];
     for (const peerId of connected()) linkedWhileAway.add(peerId);
   });
 
@@ -492,6 +500,7 @@ export function createTrysteroTransport(
     status: (peerId): PeerStatus => (connected().includes(peerId) ? 'direct' : 'offline'),
     peers: connected,
     follow: (focus) => { followed = focus; },
+    expectPeers: (peers) => { expectedPeers = peers; },
     // Rejoin if a link the focus cares about is down now, or if one that was in the room while the page was hidden is
     // down or gone now (for a participant, while its link to the host is down: the lost link may be the host's under
     // its old peer ID), or if a rejoin left no room. Otherwise, after the page was hidden, watch for such a link that
@@ -514,9 +523,14 @@ export function createTrysteroTransport(
       // A participant whose host never joined its room, locked soon after entering it (the lock came before Trystero
       // listed the host), has no link to find down and none to watch drop: rejoin, and count the host as a link to wait for, so verifyLinks retries.
       const hostMissing = wasHidden && hiddenAfterEnterMs < HOST_JOIN_WINDOW_MS && Date.now() - hiddenAtMs >= HOST_JOIN_MIN_HIDDEN_MS && focus?.host != null && !(focus.host in connections);
-      if (dead || lostInLock || hostMissing) {
+      // The facilitator's page, locked before its room listed a participant that had just joined,
+      // is the same case: rejoin, and wait for each such participant, so verifyLinks retries.
+      const stillAbsent = focus === undefined && wasHidden && Date.now() - hiddenAtMs >= HOST_JOIN_MIN_HIDDEN_MS && Date.now() - hostLinkRejoinedAt >= HOST_LINK_REJOIN_GAP_MS
+        ? expectedAtHide.filter((peerId) => !(peerId in connections)) : [];
+      if (dead || lostInLock || hostMissing || stillAbsent.length > 0) {
         rejoin();
         if (hostMissing && focus?.host) lost.add(focus.host);
+        for (const peerId of stillAbsent) lost.add(peerId);
       }
       // A resume of a page that was not hidden (the Retry button) watches nothing.
       else if (wasHidden) watch = { until: Date.now() + RESUME_WATCH_MS, focus };

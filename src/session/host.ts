@@ -93,6 +93,8 @@ interface PeerRecord {
 const TICK_MS = 1000;
 // docs/product/sync-protocol.md, Offline thresholds and Joining.
 export const ONLINE_MS = 15_000;
+// How recently a participant must have joined for a host's resume to look for its direct link.
+const HOST_EXPECT_MS = 30_000;
 export const DIRECT_SILENCE_MS = 10_000;
 export const JOIN_REFUSED_MS = 30_000;
 // A ping counts only if its estimate of the host's clock is within this of it.
@@ -236,6 +238,15 @@ export class HostSession {
     this.published = { state: o.state, tabs: this.tabs, seq: 0 };
     this.transport.onInbound((m) => {
       this.receive(m).catch((err) => console.warn('Could not handle a message', err));
+    });
+    // The participants that joined (were bound) within HOST_EXPECT_MS, still on probation or not (its first ping comes
+    // as the direct link forms): a lock of this tab may have cut off a direct connection to one of them before the
+    // direct room listed it, which the transport's resume brings back. One that joined longer ago and is not in the room has no direct path, however
+    // often it is heard from, and is not waited for.
+    this.transport.expectPeers?.(() => {
+      const cutoff = this.now() - HOST_EXPECT_MS;
+      const joined = [...this.peers.values()].filter((peer) => peer.pv === PROTOCOL_VERSION && peer.boundAt >= cutoff);
+      return [...new Set(joined.map((peer) => peer.peerId))];
     });
     this.transport.onPeerLeave((peerId) => {
       let left = false;

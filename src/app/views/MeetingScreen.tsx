@@ -16,15 +16,20 @@ import { ConfirmDialog, Sheet } from '../../ui/sheet';
 import { Switch } from '../../ui/switch';
 import { OutcomeLine, type TimeUpChoice } from '../../ui/time-up-vote';
 import { barRow, controlsLeftOut, type ActionId } from '../action-bar';
-import { announcementsBetween, lengthNotice } from '../announce';
+import { announcementsBetween, bannerLine, lengthNotice } from '../announce';
 import { useAnnounce } from '../announcer';
 import { ACTION_LABEL, bannerTone } from '../banner-choice';
 import { COPY, type Banner as BannerData, type BannerAction } from '../banners';
 import { useCopyOutcome } from '../copy-outcome';
+import { FeedbackButton, type FeedbackWiring } from '../feedback';
+import { bannerOffersFeedback } from '../feedback-banner';
+import { FEEDBACK_BUILT } from '../feedback-gate';
+import { COPY as FEEDBACK_COPY } from '../../feedback/copy';
 import { createFocusHold } from '../focus-hold';
 import { outcomeLine } from '../decision';
 import { refusalPlace } from '../refusal-place';
 import { FACILITATOR_LINE, guideLine } from '../guide';
+import { showHostAwayNote } from '../host-away';
 import { shortDate } from '../lengths';
 import { setSoundOn, soundOn } from '../prefs';
 import { listenForAudioUnlock, playTimerSound, SOUND_OPTIONS } from '../sounds';
@@ -34,6 +39,7 @@ import { Confirmations, CopyField, type ConfirmId } from './Confirmations';
 import { DiscussionPhase } from './DiscussionPhase';
 import { EndedView } from './EndedView';
 import { FacilitatorBar, moreActions } from './FacilitatorBar';
+import { FeedbackSheet } from './FeedbackSheet';
 import { FacilitatorControls } from './FacilitatorControls';
 import { NAME_HINT, nameHint } from './Home';
 import { RenameSheet } from './RenameSheet';
@@ -83,9 +89,11 @@ export interface MeetingScreenProps {
   onRename: (name: string) => void;
   // Open the share step when the screen first shows: straight after creating the meeting.
   inviteOnOpen?: boolean;
+  // The feedback sheet and its buttons: absent when the build does not carry the feature (nothing is placed).
+  feedback?: FeedbackWiring;
 }
 
-export type SheetId = 'share' | 'people' | 'picker' | 'timeUp' | 'more' | 'copyText' | 'deleteTopic' | 'rename' | ConfirmId;
+export type SheetId = 'share' | 'people' | 'picker' | 'timeUp' | 'more' | 'copyText' | 'deleteTopic' | 'rename' | 'feedback' | ConfirmId;
 
 const CONFIRMS: readonly SheetId[] = ['resetVotes', 'raiseVotes', 'endMeeting', 'backUp', 'stopTimer'];
 
@@ -95,6 +103,8 @@ const CONFIRMS: readonly SheetId[] = ['resetVotes', 'raiseVotes', 'endMeeting', 
 const STALE_VOTE_MS = 3000;
 
 export function MeetingScreen(props: MeetingScreenProps) {
+  // Tested on the compile-time constant, so a build without the feature keeps none of the sheet, its buttons or their copy.
+  const feedback = FEEDBACK_BUILT ? props.feedback : undefined;
   const { view, you, host } = props;
   const facilitator = view.role !== 'guest';
   const wide = useWide();
@@ -205,8 +215,14 @@ export function MeetingScreen(props: MeetingScreenProps) {
     document.addEventListener('focusout', onOut);
     return () => { document.removeEventListener('focusin', onIn); document.removeEventListener('focusout', onOut); };
   }, []);
+  // A banner announces when it appears or changes; when it goes, a recovery line replaces its words where one makes sense
+  // (the announcer empties the region soon after in any case).
+  const previousBanner = useRef<string | null>(null);
   useEffect(() => {
-    if (props.banner) announce(props.banner.text);
+    const now = props.banner?.text ?? null;
+    const line = bannerLine(previousBanner.current, now);
+    previousBanner.current = now;
+    if (line) announce(line);
   }, [props.banner?.text]);
   useEffect(() => {
     if (outcome) announce(outcome);
@@ -256,7 +272,7 @@ export function MeetingScreen(props: MeetingScreenProps) {
 
   // A control inside a sheet that opens another sheet keeps the first opener: the button on the page that started it.
   const remember = (from: HTMLElement | null) => { if (!from?.closest('dialog')) opener.current = from; };
-  const openSheet = (id: SheetId, from: HTMLElement) => { remember(from); setSheet(id); };
+  const openSheet = (id: SheetId, from: HTMLElement | null) => { remember(from); setSheet(id); };
   const closeSheet = () => { setSheet(null); setCopyFallback(null); };
   const changeSound = (on: boolean) => { setSoundOn(on); setSound(on); };
   const openPicker = (topicId: number, restart: boolean, from?: HTMLElement) => {
@@ -321,9 +337,10 @@ export function MeetingScreen(props: MeetingScreenProps) {
     const opensSheet = ['backUp', 'stopTimer', 'decide', 'startTimer', 'discussNext', 'endMeeting', 'invite', 'copyText'].includes(id);
     if (fromMore && !opensSheet) closeSheet();
   };
-  const onBannerAction = (action: BannerAction) => {
+  const onBannerAction = (action: BannerAction, from?: HTMLElement) => {
     // Backing up always goes through the warning about the meeting's keys.
     if (action === 'backUp') { opener.current = null; setSheet('backUp'); }
+    else if (action === 'feedback') { if (feedback) openSheet('feedback', from ?? null); }
     else props.onBannerAction(action);
   };
 
@@ -347,8 +364,8 @@ export function MeetingScreen(props: MeetingScreenProps) {
       onResetVotes={(from) => openSheet('resetVotes', from)} onRaiseVotes={(votes, from) => { setRaiseTo(votes); openSheet('raiseVotes', from); }} onEndMeeting={(from) => openSheet('endMeeting', from)} sound={soundControls} />
   );
   const more = moreActions(view);
-  // Phones have no mode switch in the top bar: the facilitator finds it at the foot of the More sheet, and
-  // a guest in the People sheet (which has no bar to put it in).
+  // Phones have no mode switch in the top bar: the facilitator finds it at the foot of the More sheet, under this heading, and
+  // a guest in the People sheet, under "This device" (which has no bar to put it in).
   const displaySection = (
     <section className="mtg-sheet-section" aria-labelledby="sheet-display">
       <h3 className="mtg-sheet-heading" id="sheet-display">Display</h3>
@@ -368,7 +385,7 @@ export function MeetingScreen(props: MeetingScreenProps) {
   const sidePanel = facilitator && wide;
   // On an ended meeting the ended banner always wins for a participant, so no connection banner shows; for the facilitator
   // it wins over the storage notice, which is only advice, but not over a failed save or the network.
-  const shown = view.phase === 'ended' && (!facilitator || props.banner?.text === COPY.storageNotice) ? null : props.banner;
+  const shown = view.phase === 'ended' && props.banner?.text !== COPY.wentWrong && (!facilitator || props.banner?.text === COPY.storageNotice) ? null : props.banner;
   const action = shown?.action;
 
   return (
@@ -380,7 +397,7 @@ export function MeetingScreen(props: MeetingScreenProps) {
             {view.rehearsal ? <Badge>Rehearsal</Badge> : null}
           </div>
           <p className="rb-sub mtg-guide">
-            <span>{guideLine(view.phase, facilitator, view.voteAllowance)}</span>
+            <span>{guideLine(view.phase, facilitator, view.voteAllowance, view.topics.find((t) => t.column === 'discussing')?.topicId ?? null)}</span>
             <a className="rb-link" href="/lean-coffee/" target="_blank" rel="noopener">How Lean Coffee works</a>
           </p>
           {facilitator && view.phase !== 'ended' ? <p className="rb-sub">{FACILITATOR_LINE}</p> : null}
@@ -388,13 +405,16 @@ export function MeetingScreen(props: MeetingScreenProps) {
         <div className="mtg-top-end">
           <Button variant="ghost" size="sm" onClick={(e) => openSheet('people', e.currentTarget)}>{`${view.online.length} here`}</Button>
           {view.phase === 'ended' ? null : <VoteBudget total={view.voteAllowance} used={view.voteAllowance - left} />}
+          {wide && feedback ? <FeedbackButton place="top" troubled={feedback.troubled} onClick={(from) => openSheet('feedback', from)} /> : null}
           {wide ? <ModeSwitch /> : null}
         </div>
       </header>
       {shown ? (
         <div className="mtg-banner">
           <Banner tone={bannerTone(shown.text, action)}
-            action={action ? { label: ACTION_LABEL[action], onClick: () => onBannerAction(action) } : undefined}>
+            action={action ? { label: ACTION_LABEL[action], onClick: (from) => onBannerAction(action, from) } : undefined}
+            secondAction={feedback && bannerOffersFeedback(shown.text, feedback.has)
+              ? { label: ACTION_LABEL.feedback, onClick: (from) => onBannerAction('feedback', from) } : undefined}>
             {shown.text}
           </Banner>
         </div>
@@ -451,8 +471,12 @@ export function MeetingScreen(props: MeetingScreenProps) {
         </div>
       ) : null}
 
-      <PeopleSheet open={sheet === 'people'} onClose={closeSheet} opener={opener.current} view={view} you={you} wide={wide} sound={sound} onSound={changeSound}
+      <PeopleSheet open={sheet === 'people'} onClose={closeSheet} opener={opener.current} view={view} you={you} wide={wide} sound={sound} onSound={changeSound} feedbackButton={feedback ? <FeedbackButton place="people" troubled={feedback.troubled} onClick={(from) => openSheet('feedback', from)} /> : undefined} hostAway={showHostAwayNote(facilitator, props.hostAway)}
         presence={host?.presence} relays={host?.relays} oversizeCount={host?.oversizeCount} />
+      {feedback ? (
+        <FeedbackSheet open={sheet === 'feedback'} onClose={closeSheet} returnFocusTo={opener.current} prepare={feedback.prepare}
+          loadLiveVersion={feedback.loadLiveVersion} trouble={feedback.trouble} onSent={feedback.onSent} />
+      ) : null}
       {host ? <ShareSheet open={sheet === 'share'} link={host.link} meetingName={view.boardName} opener={opener.current} onClose={closeSheet} /> : null}
       <TimeboxPicker open={sheet === 'picker'} opener={opener.current} topic={view.topics.find((t) => t.topicId === picker?.topicId)}
         restart={picker?.restart ?? false} rehearsal={view.rehearsal} onStart={startTimer} onClose={cancelPicker} />
@@ -493,7 +517,13 @@ export function MeetingScreen(props: MeetingScreenProps) {
       {facilitator ? (
         <>
           <Sheet open={sheet === 'more'} title="More" onClose={closeSheet} returnFocusTo={opener.current}>
-            {more.actions.length > 0 ? <ActionList actions={more.actions.map((a) => ({ label: a.label, onClick: (from) => onAction(a.id, from) }))} /> : null}
+            {more.actions.length > 0 || feedback ? (
+              <ActionList actions={[
+                ...more.actions.map((a) => ({ label: a.label, onClick: (from: HTMLElement) => onAction(a.id, from) })),
+                ...(feedback ? [{ label: FEEDBACK_COPY.button, onClick: (from: HTMLElement) => openSheet('feedback', from),
+                  trouble: feedback.troubled ? FEEDBACK_COPY.troubleDescription : null }] : []),
+              ]} />
+            ) : null}
             {more.controls ? <section className="mtg-sheet-section" aria-label="Facilitator controls">{controlsFor('more')}</section> : null}
             {displaySection}
           </Sheet>

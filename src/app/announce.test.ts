@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Timer, TopicView } from '../engine/types';
-import { announcementsBetween, countdownAnnouncement, lengthNotice, TIME_UP_ANNOUNCEMENT } from './announce';
+import { announcementsBetween, bannerLine, bannerRecovery, countdownAnnouncement, lengthNotice, TIME_UP_ANNOUNCEMENT } from './announce';
+import { COPY } from './banners';
 
 const topic = (topicId: number, column: TopicView['column'], text = `Topic ${topicId}`): TopicView =>
   ({ topicId, text, column, position: 0, authorId: 'a', votes: 0, mine: 0 });
@@ -100,5 +101,43 @@ describe('lengthNotice', () => {
     expect(lengthNotice('', text(280))).toBe('0 characters left');
     expect(lengthNotice('', '😀'.repeat(279) + 'a')).toBe('0 characters left');
     expect(lengthNotice(text(239), text(279))).toBe('1 character left');
+  });
+});
+
+describe('bannerRecovery', () => {
+  it('says the facilitator is back when the offline banner goes with nothing in its place', () => {
+    expect(bannerRecovery(COPY.hostOffline, null)).toBe('The facilitator is back.');
+  });
+
+  it('says the network is back when the no-network banner goes', () => {
+    expect(bannerRecovery(COPY.noRelays, null)).toBe('The meeting network is back.');
+  });
+
+  it('says nothing while a banner is still there, when none was there, or for a banner with no recovery', () => {
+    expect(bannerRecovery(COPY.hostOffline, COPY.noRelays)).toBeNull();
+    expect(bannerRecovery(COPY.hostOffline, COPY.hostOffline)).toBeNull();
+    expect(bannerRecovery(null, null)).toBeNull();
+    expect(bannerRecovery(COPY.storageNotice, null)).toBeNull();
+  });
+});
+
+describe('bannerLine', () => {
+  it('says the new banner, a recovery when one goes, and nothing on the first render', () => {
+    expect(bannerLine(null, COPY.hostOffline)).toBe(COPY.hostOffline);
+    expect(bannerLine(COPY.hostOffline, null)).toBe('The facilitator is back.');
+    expect(bannerLine(null, null)).toBeNull();
+  });
+
+  it('says only the new words when one banner gives way to another', () => {
+    expect(bannerLine(COPY.hostOffline, COPY.noRelays)).toBe(COPY.noRelays);
+  });
+
+  it('says nothing when a banner with no recovery clears', () => {
+    expect(bannerLine(COPY.storageNotice, null)).toBeNull();
+    expect(bannerLine(COPY.pendingFailed, null)).toBeNull();
+  });
+
+  it('does not say the facilitator is back when the offline banner gives way to the ended banner', () => {
+    expect(bannerLine(COPY.hostOffline, 'Meeting ended · 8 Nov 2026')).toBe('Meeting ended · 8 Nov 2026');
   });
 });

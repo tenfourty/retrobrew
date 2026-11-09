@@ -59,6 +59,22 @@ test('the app home links back to the landing page and the guide', { tag: '@publi
   await expect(page.getByRole('heading', { name: 'Your meetings' })).toBeVisible();
 });
 
+test('the FAQ states the shared relays and per-device votes', { tag: '@public' }, async ({ page }) => {
+  await page.goto('/');
+  await page.getByText('What do the relays see?').click();
+  await expect(page.getByText("Everyone in a meeting connects through the same built-in relays. A modified copy of Retrobrew set up with other relays can't change that for the people who join, because the meeting link carries no relay choice.")).toBeVisible();
+  await expect(page.getByText('Votes count per device, not per person, because there are no accounts: someone who joins from two devices gets a full set of votes on each.')).toBeVisible();
+});
+
+// The steps, reasons and questions themselves are pinned to the spec by src/site-copy.test.ts; here only that
+// the browser exposes each section as a named region (the aria-labelledby wiring).
+test('the landing page sections are named regions', { tag: '@public' }, async ({ page }) => {
+  await page.goto('/');
+  for (const name of ['How Lean Coffee works', 'Why Retrobrew', 'Questions']) {
+    await expect(page.getByRole('region', { name })).toBeVisible();
+  }
+});
+
 test('the landing page works with JavaScript off', { tag: '@public' }, async ({ browser }) => {
   const context = await browser.newContext({ javaScriptEnabled: false, colorScheme: 'dark' });
   const page = await context.newPage();
@@ -103,16 +119,9 @@ test('the landing page still works when the browser blocks storage', { tag: '@pu
   expect(errors).toEqual([]);
 });
 
-test('the landing page carries its head metadata and the build version', { tag: '@public' }, async ({ page }) => {
+// The head tags are pinned to the spec by src/site-copy.test.ts; here only what needs a server.
+test('the landing page serves its icons and carries the build version', { tag: '@public' }, async ({ page }) => {
   await page.goto('/');
-  await expect(page).toHaveTitle('Retrobrew: free Lean Coffee meetings in your browser');
-  await expect(page.locator('html')).toHaveAttribute('lang', 'en-GB');
-  const head = page.locator('head');
-  await expect(head.locator('meta[name="description"]')).toHaveAttribute('content', 'Run a Lean Coffee where the people in the room set the agenda. Free, open source and private, with no sign-up. Join from any phone or laptop.');
-  await expect(head.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://retrobrew.app/');
-  await expect(head.locator('meta[property="og:image"]')).toHaveAttribute('content', 'https://retrobrew.app/og.png');
-  await expect(head.locator('meta[name="twitter:card"]')).toHaveAttribute('content', 'summary_large_image');
-  await expect(head.locator('meta[name="color-scheme"]')).toHaveAttribute('content', 'light dark');
   for (const icon of ['favicon.svg', 'favicon.png', 'apple-touch-icon.png', 'og.png']) {
     expect((await page.request.get(`/${icon}`)).status(), icon).toBe(200);
   }

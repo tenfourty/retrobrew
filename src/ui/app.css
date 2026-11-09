@@ -98,6 +98,23 @@ html { scroll-padding-top: var(--mtg-top, 0px); }
 .state .state-top { padding: var(--space-4) 0 0; }
 .state-panel p, .join-panel p { margin: 0; }
 .state-panel { justify-items: start; }
+.state-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+
+/* ---------- Feedback sheet ---------- */
+.fbk-form { display: grid; gap: var(--space-4); }
+.fbk-message { resize: vertical; min-height: calc(4 * 1.5em + 2 * var(--space-3)); max-height: 12em; overflow-y: auto; line-height: 1.5; }
+.fbk-count { text-align: right; }
+.fbk-count-full { color: var(--danger); }
+.fbk-report > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font: 400 15px/1.3 var(--rb-font-body); color: var(--ink); }
+.fbk-report > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.fbk-consent { font-size: 13px; line-height: 1.45; color: var(--ink-soft); }
+.fbk-consent a { color: var(--ink); text-underline-offset: 3px; }
+.fbk-failed { display: grid; gap: var(--space-2); justify-items: start; }
+.fbk-sent { display: grid; gap: var(--space-2); }
+.fbk-dot { display: inline-block; flex: none; width: 8px; height: 8px; margin-inline-start: var(--space-2); border-radius: var(--radius-dot); background: var(--accent); }
+.mtg-device-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.fbk-footer { display: flex; justify-content: center; padding-top: var(--space-2); }
+.state .fbk-footer { justify-content: flex-start; }
 
 /* ---------- Timer sound ---------- */
 .mtg-sound { display: grid; gap: var(--space-2); }

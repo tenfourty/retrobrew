@@ -1,6 +1,7 @@
 import { createContext, type ComponentChildren } from 'preact';
-import { useCallback, useContext, useEffect, useRef } from 'preact/hooks';
+import { useCallback, useContext, useEffect, useMemo, useRef } from 'preact/hooks';
 import { topmostDialog } from '../ui/sheet';
+import { createSpeaker } from './speaker';
 
 const Announce = createContext<(text: string) => void>(() => undefined);
 
@@ -10,8 +11,6 @@ const Announce = createContext<(text: string) => void>(() => undefined);
 // region moves into the topmost open dialog before it speaks, and back to the page when none is open.
 export function Announcer({ children }: { children?: ComponentChildren }) {
   const region = useRef<HTMLDivElement | null>(null);
-  const pending = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const queued = useRef<string[]>([]);
 
   const ensureRegion = useCallback((): HTMLDivElement => {
     if (region.current) return region.current;
@@ -25,30 +24,20 @@ export function Announcer({ children }: { children?: ComponentChildren }) {
     return el;
   }, []);
 
+  // Found when it speaks, not when it is asked: a sheet that opens in the same update (time up) is already open by now.
+  const speaker = useMemo(() => createSpeaker(ensureRegion, (el) => {
+    const host = topmostDialog() ?? document.body;
+    if (el.parentElement !== host) host.appendChild(el);
+  }), [ensureRegion]);
+
   // Effects run children first, so a banner present on the first render announces before this effect: announce() makes
   // the region itself if it isn't there yet. The effect still makes it up front, so it exists before it first speaks.
   useEffect(() => {
     ensureRegion();
-    return () => { clearTimeout(pending.current); region.current?.remove(); region.current = null; };
-  }, [ensureRegion]);
+    return () => { speaker.dispose(); region.current?.remove(); region.current = null; };
+  }, [ensureRegion, speaker]);
 
-  const announce = useCallback((text: string) => {
-    const el = ensureRegion();
-    // Empty it, then speak on the next tick, so the same words twice in a row are read twice. Messages that arrive
-    // together, such as a phase change and a topic starting, are read as one.
-    el.textContent = '';
-    queued.current.push(text);
-    clearTimeout(pending.current);
-    pending.current = setTimeout(() => {
-      // Found when it speaks, not when it is asked: a sheet that opens in the same update (time up) is already open by now.
-      const host = topmostDialog() ?? document.body;
-      if (el.parentElement !== host) host.appendChild(el);
-      el.textContent = queued.current.join(' ');
-      queued.current = [];
-    }, 50);
-  }, [ensureRegion]);
-
-  return <Announce.Provider value={announce}>{children}</Announce.Provider>;
+  return <Announce.Provider value={speaker.announce}>{children}</Announce.Provider>;
 }
 
 export function useAnnounce(): (text: string) => void {

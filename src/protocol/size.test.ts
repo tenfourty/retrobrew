@@ -4,7 +4,7 @@ import { createBoard } from '../engine/board';
 import { REFRESH_CAP_BYTES, RELAY_EVENT_MAX_BYTES } from '../engine/limits';
 import type { Attendee, BoardState, Timer, Command, PersonalView, Result, SharedView } from '../engine/types';
 import { measuredApply } from '../session/measured';
-import { ADVERSARIAL_SEED, adversarialText, realisticBoard } from '../test/fixtures';
+import { ADVERSARIAL_SEED, adversarialText, realisticBoard, sentence } from '../test/fixtures';
 import { mulberry32 } from '../test/mulberry32';
 import { fingerprint, generateSigningKeys, signerFrom } from '../crypto/sign';
 import { TABS_PER_VIEW } from '../session/tabs';
@@ -14,7 +14,7 @@ import { utf8 } from '../crypto/bytes';
 import { unseal, generateRoomKey, importRoomKey } from '../crypto/aead';
 import { generateSecretKey } from 'nostr-tools';
 import {
-  bundleRecipients, buildStandInRefresh, createSizeMeter, ITEM_SLACK_BYTES, largestPersonal, largestShared, MARGIN_BYTES, MARGIN_RATIO,
+  bundleRecipients, buildStandInRefresh, createSizeMeter, ITEM_SLACK_BYTES, largestPersonal, ODD_ENTRY_SLACK_BYTES, SAMPLED_ENTRIES, largestShared, MARGIN_BYTES, MARGIN_RATIO,
   PERSON_ID_CHARS, REFUSED_ENTRIES_MAX, relayEventBytes, relayEventBytesFor, StandIns, standInEventBytes, TOPIC_PLACEHOLDER, type SizeMeter,
 } from './size';
 
@@ -132,7 +132,7 @@ describe('size meter', () => {
     expect(Object.keys(state.attendees).length).toBeLessThan(60);
   }, 60_000);
 
-  it('short names reach 60 people inside the cap, and the 61st join is refused for the limit', async () => {
+  it('with short test IDs (guest-3, not a live meeting\'s fingerprints) and short names, 60 people fit the cap, and the 61st join is refused for the limit', async () => {
     const meter = await createSizeMeter();
     let state = createBoard({ boardId: 'short-names', boardName: 'Team', ownerId: 'owner', ownerName: 'Owner' });
     for (let i = 1; i < 60; i++) state = await must(meter, state, `guest-${i}`, { type: 'join', name: `Guest${String(i).padStart(2, '0')}` });
@@ -308,14 +308,14 @@ describe('the cheap size meter', () => {
     }
   }, 60_000);
 
-  it('seals, signs and hashes nothing, and deflates twice when every ID is a fingerprint, once more for any other ID', async () => {
+  it('seals, signs and hashes nothing, and deflates the outer message and the sampled entries when every ID is a fingerprint, once more for any other ID', async () => {
     const meter = await createSizeMeter();
     const board = boards().find((b) => b.label.startsWith('ascii random 15'))!.state;
     const spies = (['sign', 'encrypt', 'digest'] as const).map((name) => vi.spyOn(crypto.subtle, name));
     const streams = vi.spyOn(globalThis, 'CompressionStream');
     await meter.measure(board);
     for (const spy of spies) expect(spy).not.toHaveBeenCalled();
-    expect(streams).toHaveBeenCalledTimes(2);
+    expect(streams).toHaveBeenCalledTimes(1 + SAMPLED_ENTRIES);
     streams.mockClear();
     const odd = structuredClone(board);
     const [first] = Object.keys(odd.attendees).filter((id) => odd.attendees[id].role !== 'owner');
@@ -323,24 +323,47 @@ describe('the cheap size meter', () => {
     odd.attendees['person-1'] = odd.attendees[first];
     delete odd.attendees[first];
     await meter.measure(odd);
-    expect(streams).toHaveBeenCalledTimes(3);
+    expect(streams).toHaveBeenCalledTimes(2 + SAMPLED_ENTRIES);
     for (const spy of [...spies, streams]) spy.mockRestore();
   });
 
-  it('entries of one board differ in deflated size by no more than ITEM_SLACK_BYTES', async () => {
-    const state = boards()[0].state;
-    const sizes: number[] = [];
-    for (let seed = 1; seed <= 150; seed++) {
-      const s = new StandIns(seed * 7919);
-      const entry = largestPersonal(state, 'x'.repeat(22), s);
-      sizes.push((await deflate(utf8(JSON.stringify(entry)))).length);
+  it('the sampled maximum: SAMPLED_ENTRIES draws, each entry given the largest and ITEM_SLACK_BYTES, cover the sum of the board\'s own entries', async () => {
+    const boardsToTry = [boards().find((b) => b.label.startsWith('incompressible 20 people'))!, boards().find((b) => b.label.startsWith('ascii random 15 people'))!, boards()[0]];
+    const entry = async (state: BoardState, s: StandIns) => (await deflate(utf8(JSON.stringify(largestPersonal(state, s.text(FINGERPRINT_ALPHABET, 22), s))))).length;
+    for (const { label, state } of boardsToTry) {
+      const n = Math.max(bundleRecipients(state, 'owner', []).length, 3) + REFUSED_ENTRIES_MAX;
+      let tightest = Infinity;
+      let singleDrawWorst = Infinity;
+      for (let trial = 1; trial <= 60; trial++) {
+        const s = new StandIns(trial * 7919);
+        const sampled: number[] = [];
+        for (let k = 0; k < SAMPLED_ENTRIES; k++) sampled.push(await entry(state, s));
+        let real = 0;
+        for (let i = 0; i < n; i++) real += await entry(state, s);
+        tightest = Math.min(tightest, n * (Math.max(...sampled) + ITEM_SLACK_BYTES) - real);
+        singleDrawWorst = Math.min(singleDrawWorst, n * (sampled[0] + ITEM_SLACK_BYTES) - real);
+      }
+      console.info(`${label}: ${n} entries, smallest cover over 60 trials ${tightest} bytes (one draw alone: ${singleDrawWorst})`);
+      expect(tightest, label).toBeGreaterThanOrEqual(0);
     }
-    const spread = Math.max(...sizes) - Math.min(...sizes);
-    console.info(`entry deflated size over ${sizes.length} stand-ins: ${Math.min(...sizes)} to ${Math.max(...sizes)} bytes (spread ${spread})`);
-    expect(spread).toBeLessThanOrEqual(ITEM_SLACK_BYTES);
-  }, 60_000);
+  }, 120_000);
 
-  it('is never below the real, sealed stand-in refresh for many boards and random stand-ins, and costs at most ITEM_SLACK_BYTES an entry', async () => {
+  it('odd-ID entries (plain IDs such as guest-3): the figure is never below the real sealed event, whatever the seeds', async () => {
+    const roomKey = await importRoomKey(generateRoomKey());
+    const signer = await signerFrom(await generateSigningKeys(false));
+    const nostrKey = generateSecretKey();
+    let state = createBoard({ boardId: 'plain', boardName: 'Team', ownerId: 'owner', ownerName: 'Owner' });
+    for (let i = 1; i < 60; i++) state = direct(state, `guest-${i}`, { type: 'join', name: `Attendee${String(i).padStart(2, '0')}` });
+    let tightest = Infinity;
+    for (let seed = 1; seed <= 40; seed++) {
+      const real = relayEventBytes(await buildStandInRefresh(state, signer, roomKey, new StandIns(seed * 7_368_787)), 'h'.repeat(20), TOPIC_PLACEHOLDER, nostrKey);
+      tightest = Math.min(tightest, (await standInEventBytes(state, new StandIns(seed * 2_750_159 + 3))) - real);
+    }
+    console.info(`plain IDs, 60 people: smallest raw cover over 40 seeds ${tightest} bytes`);
+    expect(tightest).toBeGreaterThanOrEqual(0);
+  }, 180_000);
+
+  it('is never below the real, sealed stand-in refresh for many boards and random stand-ins, and costs no more than ODD_ENTRY_SLACK_BYTES an entry', async () => {
     const meter = await createSizeMeter();
     const roomKey = await importRoomKey(generateRoomKey());
     const signer = await signerFrom(await generateSigningKeys(false));
@@ -356,10 +379,110 @@ describe('the cheap size meter', () => {
       const old = Math.max(...reals) + Math.ceil(Math.max(...reals) * MARGIN_RATIO) + MARGIN_BYTES;
       const cheap = await meter.measure(state);
       expect(cheap, label).toBeGreaterThanOrEqual(old);
-      // What the bound costs: up to ITEM_SLACK_BYTES (in base64url) for each entry, and the spread of one random sample.
+      // What the bound costs: the largest of the sampled entries over a typical one, a few bytes (in base64url) for each entry.
       const entries = bundleRecipients(state, 'owner', []).length + REFUSED_ENTRIES_MAX;
       console.info(`${label}: ${entries} entries, figure with real seals ${old}, cheap figure ${cheap} (+${cheap - old})`);
-      expect(cheap - old, label).toBeLessThanOrEqual(Math.ceil((entries * ITEM_SLACK_BYTES * 4) / 3) + 400);
+      expect(cheap - old, label).toBeLessThanOrEqual(Math.ceil((entries * ODD_ENTRY_SLACK_BYTES * 4) / 3) + 400);
     }
   }, 180_000);
+});
+
+// docs/product/sync-protocol.md, Size, "The measured arithmetic": the table's figures are the meter's bounds for these
+// boards. The meter's random stand-ins move a figure by a few bytes, so each is pinned within 1 %, and the table's
+// "over the cap" and "inside the cap" remarks are pinned exactly.
+describe('the measured arithmetic table', () => {
+  // A live person's ID is a 22-character fingerprint (random base64url); `plain` IDs such as "guest-3" compress far
+  // better and are not what a live meeting has. The IDs here are drawn from a seeded generator, the same on every run.
+  const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  function fingerprintId(i: number): string {
+    const random = mulberry32(0x5eed + i);
+    return Array.from({ length: PERSON_ID_CHARS }, () => B64[Math.floor(random() * 64)]).join('');
+  }
+  type Ids = 'fingerprint' | 'plain';
+  function board(people: number, name: (i: number) => string, topics: number, topic: (i: number) => string, ids: Ids = 'fingerprint'): BoardState {
+    const id = (i: number) => (ids === 'fingerprint' ? fingerprintId(i) : i === 0 ? 'owner' : `guest-${i}`);
+    let state = createBoard({ boardId: 'table', boardName: 'Team', ownerId: id(0), ownerName: name(0) });
+    for (let i = 1; i < people; i++) {
+      const joined = apply(state, id(i), { type: 'join', name: name(i) }, NOW);
+      if (!joined.ok) throw new Error(joined.key);
+      state = joined.state;
+    }
+    for (let i = 0; i < topics; i++) {
+      const added = apply(state, id(0), { type: 'addTopic', text: topic(i) }, NOW);
+      if (!added.ok) throw new Error(added.key);
+      state = added.state;
+    }
+    return state;
+  }
+  const adversarial = (nameLength: number, topicLength: number) => {
+    const random = mulberry32(ADVERSARIAL_SEED);
+    return { name: () => adversarialText(random, nameLength), topic: () => adversarialText(random, topicLength) };
+  };
+  const ascii16 = (i: number) => `Attendee${String(i).padStart(8, '0')}`;
+  const ascii10 = (i: number) => `Attendee${String(i).padStart(2, '0')}`;
+  const english60 = (i: number) => sentence(i, 60);
+
+  // Every board but the "plain IDs" row has live-style fingerprint IDs.
+  const rows: Array<{ label: string; state: () => BoardState; bytes: number; fits: boolean }> = [
+    { label: '60 attendees, 60-character adversarial names, no topics', bytes: 58_339, fits: false,
+      state: () => { const a = adversarial(60, 1); return board(60, a.name, 0, a.topic); } },
+    { label: '60 attendees, 16-character ASCII names, no topics', bytes: 44_786, fits: true,
+      state: () => board(60, ascii16, 0, english60) },
+    { label: '15 adversarial people, 10 adversarial topics of 280', bytes: 27_460, fits: true,
+      state: () => { const a = adversarial(60, 280); return board(15, a.name, 10, a.topic); } },
+    { label: '15 adversarial people, 20 topics', bytes: 37_040, fits: true,
+      state: () => { const a = adversarial(60, 280); return board(15, a.name, 20, a.topic); } },
+    { label: '30 adversarial people, 20 topics', bytes: 51_153, fits: false,
+      state: () => { const a = adversarial(60, 280); return board(30, a.name, 20, a.topic); } },
+    { label: '60 people with 10-character names, 60 topics of 60 characters', bytes: 48_168, fits: false,
+      state: () => board(60, ascii10, 60, english60) },
+    { label: '60 people with 10-character names, 60 topics of 60 characters, plain IDs (guest-3), not what a live meeting has', bytes: 47_003, fits: false,
+      state: () => board(60, ascii10, 60, english60, 'plain') },
+    { label: '60 people with 10-character names, no topics', bytes: 44_800, fits: true,
+      state: () => board(60, ascii10, 0, english60) },
+    { label: '58 people with 10-character names, no topics', bytes: 43_245, fits: true,
+      state: () => board(58, ascii10, 0, english60) },
+    { label: '55 people with 10-character names, 60 topics of 60 characters', bytes: 44_679, fits: true,
+      state: () => board(55, ascii10, 60, english60) },
+    { label: '56 people with 10-character names, 60 topics of 60 characters', bytes: 45_246, fits: false,
+      state: () => board(56, ascii10, 60, english60) },
+    { label: '53 people with 10-character names, 60 topics of 60 characters', bytes: 42_993, fits: true,
+      state: () => board(53, ascii10, 60, english60) },
+    { label: '54 people with 10-character names, 60 topics of 60 characters', bytes: 43_793, fits: true,
+      state: () => board(54, ascii10, 60, english60) },
+    { label: '50 people with 10-character names, 60 topics of 60 characters', bytes: 40_804, fits: true,
+      state: () => board(50, ascii10, 60, english60) },
+    { label: '30 people with 10-character names, 60 topics of 60 characters', bytes: 26_237, fits: true,
+      state: () => board(30, ascii10, 60, english60) },
+  ];
+
+  // The meter's figure is an upper bound on the real sealed event for the table's boards too (live-style
+  // fingerprint IDs, 60 people with 60 topics, adversarial text), whichever random stand-ins either side draws.
+  it('is never below the real, sealed stand-in event for the table\'s boards, whatever the seeds', async () => {
+    const roomKey = await importRoomKey(generateRoomKey());
+    const signer = await signerFrom(await generateSigningKeys(false));
+    const nostrKey = generateSecretKey();
+    const a = adversarial(60, 280);
+    const boards: Array<[string, BoardState]> = [
+      ['60 people, 60 topics, fingerprint IDs', board(60, ascii10, 60, english60)],
+      ['60 people, no topics', board(60, ascii16, 0, english60)],
+      ['54 people, 60 topics', board(54, ascii10, 60, english60)],
+      ['30 adversarial people, 20 topics', board(30, a.name, 20, a.topic)],
+    ];
+    for (const [label, state] of boards) {
+      for (let seed = 1; seed <= 6; seed++) {
+        const real = relayEventBytes(await buildStandInRefresh(state, signer, roomKey, new StandIns(seed * 7_368_787)), 'h'.repeat(20), TOPIC_PLACEHOLDER, nostrKey);
+        const figure = await standInEventBytes(state, new StandIns(seed * 2_750_159 + 3));
+        expect(figure, `${label}, seed ${seed}`).toBeGreaterThanOrEqual(real);
+      }
+    }
+  }, 180_000);
+
+  for (const row of rows) {
+    it(`${row.label}: about ${row.bytes} bytes, ${row.fits ? 'inside' : 'over'} the cap`, async () => {
+      const size = await (await createSizeMeter()).measure(row.state());
+      expect(Math.abs(size - row.bytes) / row.bytes).toBeLessThan(0.01);
+      expect(size <= REFRESH_CAP_BYTES).toBe(row.fits);
+    }, 60_000);
+  }
 });

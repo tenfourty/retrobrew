@@ -62,7 +62,8 @@ Both modes share the same layout, the same rules from the product docs and the s
 - One sheet at a time. Sheets trap focus, close with Escape, and return focus to the control that opened them.
 - The facilitator's next-step buttons are an `ActionBar` (stacked in the wide side panel, a row with the primary on the right on phones); the phone's "More" sheet lists the rest as an `ActionList`. Key the bar's buttons by slot so focus survives a row change.
 - The QR code for a share link sits on a `QrPanel`, which stays light in every theme.
-- Connection trouble and other board-wide messages are a `Banner` below the top bar, one at a time.
+- Connection trouble and other board-wide messages are a `Banner` below the top bar, one at a time. A banner may carry a second, ghost action beside its first.
+- A report to read before sending is a `ReportList`: labelled rows and the exact text in a disclosure.
 
 ## Forms
 

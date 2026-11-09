@@ -469,6 +469,89 @@ describe('createTrysteroTransport resume', () => {
     expect(rooms).toHaveLength(1);
   });
 
+  // the host's analogue. The facilitator's page has no host to name; the session names the participants that
+  // joined just before the lock, and one of them not listed in the room at the resume is a link the lock cut off
+  // before Trystero listed it.
+  it('as the host, rejoins on resuming from hidden when a participant it expects is not in the room, and retries while it is missing', async () => {
+    const { rooms, t, page } = setUp();
+    t.expectPeers!(() => ['p1']);
+    page.hide();
+    await vi.advanceTimersByTimeAsync(3000);
+    page.show();
+    t.resume!();
+    await vi.advanceTimersByTimeAsync(LEAVE_MS);
+    expect(rooms).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(LINK_VERIFY_MS + LEAVE_MS);
+    expect(rooms).toHaveLength(3);
+    await vi.advanceTimersByTimeAsync(LINK_FINAL_MS + LEAVE_MS);
+    expect(rooms).toHaveLength(4);
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(rooms).toHaveLength(4);
+  });
+
+  it('as the host, asks for the expected participants when the page is hidden, not when it resumes', async () => {
+    const { rooms, t, page } = setUp();
+    let expected = ['p1'];
+    t.expectPeers!(() => expected);
+    page.hide();
+    expected = [];
+    await vi.advanceTimersByTimeAsync(3000);
+    page.show();
+    t.resume!();
+    await vi.advanceTimersByTimeAsync(LINK_VERIFY_MS + LINK_FINAL_MS + LEAVE_MS * 3);
+    expect(rooms).toHaveLength(4);
+  });
+
+  it('as the host, does not rejoin for an expected participant when the page was hidden only briefly', async () => {
+    const { rooms, t, page } = setUp();
+    t.expectPeers!(() => ['p1']);
+    for (let flip = 0; flip < 3; flip++) {
+      page.hide();
+      await vi.advanceTimersByTimeAsync(HOST_JOIN_MIN_HIDDEN_MS - 1);
+      page.show();
+      t.resume!();
+      await vi.advanceTimersByTimeAsync(LEAVE_MS);
+    }
+    await vi.advanceTimersByTimeAsync(LINK_VERIFY_MS + LINK_FINAL_MS + LEAVE_MS * 2);
+    expect(rooms).toHaveLength(1);
+  });
+
+  it('as the host, does not rejoin when no participant is expected, or the expected one is already listed', async () => {
+    const { rooms, t, page } = setUp();
+    t.expectPeers!(() => []);
+    page.hide();
+    await vi.advanceTimersByTimeAsync(3000);
+    page.show();
+    t.resume!();
+    await vi.advanceTimersByTimeAsync(LEAVE_MS);
+    expect(rooms).toHaveLength(1);
+    t.expectPeers!(() => ['p1']);
+    rooms[0]!.connect('p1');
+    page.hide();
+    await vi.advanceTimersByTimeAsync(3000);
+    page.show();
+    t.resume!();
+    await vi.advanceTimersByTimeAsync(LINK_VERIFY_MS + LINK_FINAL_MS + LEAVE_MS * 2);
+    expect(rooms).toHaveLength(1);
+  });
+
+  it('as the host, rejoins for an expected participant no more than once a minute', async () => {
+    const { rooms, t, page } = setUp();
+    t.expectPeers!(() => ['p1']);
+    page.hide();
+    await vi.advanceTimersByTimeAsync(3000);
+    page.show();
+    t.resume!();
+    await vi.advanceTimersByTimeAsync(LINK_VERIFY_MS + LINK_FINAL_MS + LEAVE_MS * 3);
+    expect(rooms).toHaveLength(4);
+    page.hide();
+    await vi.advanceTimersByTimeAsync(3000);
+    page.show();
+    t.resume!();
+    await vi.advanceTimersByTimeAsync(LEAVE_MS);
+    expect(rooms).toHaveLength(4);
+  });
+
   it('as a participant, does not retry once the host is back after the resume\'s rejoin', async () => {
     const { rooms, t, page } = setUp();
     t.follow!(() => ({ host: 'host' }));

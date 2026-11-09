@@ -1,5 +1,6 @@
 import { MESSAGES } from '../engine/messages';
 import type { ShareLink } from '../link';
+import type { JoinedRecord } from '../store/board-store';
 import type { KeyValueStore } from './handoff';
 
 // The device remembers, per meeting, that it has joined and under which name, so a reload or the link opened again
@@ -78,4 +79,16 @@ export function joinRefusalText(joinRefused: string | null): string | null {
 export function joiningTitle(boardName: string | undefined): string | null {
   const name = boardName?.trim();
   return name ? `Joining ${name}` : null;
+}
+
+// What the guest's page saves for "Your meetings" (docs/product/mvp-screens.md, Your meetings). Saved again on every
+// view, so joinedAt is the last time this page showed the meeting. Once the view is the ended one it carries the
+// host's end time, or `now` when the host's state has none; a reopened meeting is saved without it.
+export function joinedRecordFor(
+  meeting: { boardId: string; link: string; name: string; boardName: string },
+  view: { phase: string; endedAt: number | null },
+  now: number,
+): JoinedRecord {
+  const { boardId, link, name, boardName } = meeting;
+  return { boardId, boardName, link, name, joinedAt: now, ...(view.phase === 'ended' ? { endedAt: view.endedAt ?? now } : {}) };
 }

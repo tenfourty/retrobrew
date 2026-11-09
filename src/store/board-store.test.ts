@@ -4,7 +4,10 @@ import { describe, expect, it } from 'vitest';
 import { generateRoomKey, importRoomKey } from '../crypto/aead';
 import { fromB64url, toB64url } from '../crypto/bytes';
 import { exportKeyPair, fingerprint, generateSigningKeys, importKeyPair, signerFrom } from '../crypto/sign';
+import { apply } from '../engine/apply';
 import { createBoard } from '../engine/board';
+import { openTimeUpVote } from '../engine/discussion';
+import type { BoardState } from '../engine/types';
 import { HostSession } from '../session/host';
 import { ParticipantSession } from '../session/participant';
 import { FakeScheduler } from '../test/fake-scheduler';
@@ -58,6 +61,67 @@ describe('board store', () => {
     await store.put({ ...record, tabs: { ann: { watermark: 'x', tabs: {} } } as never });
     expect((await store.get(record.boardId))!.tabs).toBeUndefined();
     store.close();
+  });
+});
+
+// A board with the time-up vote open and two people having voted differently.
+function boardWithTimeUpBallots(owner: BoardState): BoardState {
+  const NOW = Date.now(); // a timer older than an hour is dropped when a board loads
+  const ownerId = Object.keys(owner.attendees)[0]!;
+  let s = owner;
+  const step = (actor: string, cmd: Parameters<typeof apply>[2]) => {
+    const r = apply(s, actor, cmd, NOW);
+    if (!r.ok) throw new Error(`refused: ${JSON.stringify(r)}`);
+    s = r.state;
+  };
+  step(ownerId, { type: 'addTopic', text: 'One' });
+  step(ownerId, { type: 'startDiscussion' });
+  step(ownerId, { type: 'discussTopic', topicId: 1, minutes: 5 });
+  s = openTimeUpVote(s, s.timer!.endsAt)!;
+  for (const [id, name] of [['ann-id', 'Ann'], ['bob-id', 'Bob']]) step(id, { type: 'join', name });
+  step('ann-id', { type: 'voteToContinue', topicId: 1, round: s.timer!.round, choice: 'extend' });
+  step('bob-id', { type: 'voteToContinue', topicId: 1, round: s.timer!.round, choice: 'end' });
+  return s;
+}
+
+describe('time-up votes at rest', () => {
+  // The spec's privacy rule: a stored board and a backup hold who voted and the totals, never who chose what.
+  // This guards the shape of the engine's state: ballots exist only in the per-person view the host builds for each
+  // viewer (host.ts), and the host saves the engine's state as it is, so that state must carry none.
+  const ballotKeys = /"(choice|choices|ballot|ballots|votes?By|chose|picks?|byPerson|perPerson)"/i;
+  const bareVote = (state: BoardState) => {
+    expect(Object.keys(state.continueVote!).sort()).toEqual(['round', 'topicId', 'totals', 'voters']);
+    expect(state.continueVote!.voters.every((v) => typeof v === 'string')).toBe(true);
+    expect(Object.keys(state.continueVote!.totals).sort()).toEqual(['end', 'extend', 'none']);
+  };
+
+  it('holds only the voters and the totals, in the stored record and in both kinds of export', async () => {
+    const store = await freshStore();
+    const base = await newRecord();
+    const state = boardWithTimeUpBallots(base.state);
+    expect(state.continueVote).toEqual({ topicId: 1, round: 1, voters: ['ann-id', 'bob-id'], totals: { extend: 1, none: 0, end: 1 } });
+    const record = { ...base, state };
+    await store.put(record);
+    const stored = (await store.get(record.boardId))!;
+    const backup = exportBoard(record, true);
+    const plain = exportBoard(record, false);
+    const readState = (json: string) => (JSON.parse(json) as { board: { state: BoardState } }).board.state;
+    // Each copy's state is the engine's state exactly, so nothing was added to it on the way to rest.
+    for (const [json, copy] of [[JSON.stringify(stored), stored.state], [backup, readState(backup)], [plain, readState(plain)]] as const) {
+      expect(copy).toEqual(state);
+      expect(json).not.toMatch(ballotKeys);
+      bareVote(copy);
+    }
+    store.close();
+  });
+
+  it('keeps the vote bare through an import of a backup', async () => {
+    const base = await newRecord();
+    const record = { ...base, state: boardWithTimeUpBallots(base.state) };
+    const restored = importBoard(exportBoard(record, true));
+    expect(restored.state).toEqual(record.state);
+    bareVote(restored.state);
+    expect(JSON.stringify(restored)).not.toMatch(ballotKeys);
   });
 });
 
@@ -420,6 +484,24 @@ describe('joined meetings', () => {
     expect(await store.list()).toEqual([]);
     await store.removeJoined('joined-1');
     expect(await store.listJoined()).toEqual([]);
+    store.close();
+  });
+
+  it('keeps the time a guest saw the meeting end, and drops it when the record is saved without it', async () => {
+    const store = await freshStore();
+    await store.putJoined({ ...joined(1), endedAt: 99 });
+    expect(await store.listJoined()).toEqual([{ ...joined(1), endedAt: 99 }]);
+    await store.putJoined(joined(1));
+    expect(await store.listJoined()).toEqual([joined(1)]);
+    store.close();
+  });
+
+  it('skips a stored entry whose endedAt is not a finite number', async () => {
+    const store = await freshStore();
+    await store.putJoined(joined(1));
+    await store.putJoined({ ...joined(2), endedAt: 'soon' as unknown as number });
+    await store.putJoined({ ...joined(3), endedAt: Number.NaN });
+    expect((await store.listJoined()).map((j) => j.boardId)).toEqual(['joined-1']);
     store.close();
   });
 

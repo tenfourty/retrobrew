@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { randomUUID } from 'node:crypto';
-import { expect, type BrowserContext, type CDPSession, type Locator, type Page } from '@playwright/test';
+import { expect, type APIRequestContext, type BrowserContext, type CDPSession, type Locator, type Page } from '@playwright/test';
 import { LOCAL_RELAY_URLS, RATE_LIMITED_RELAY_URL } from './relay/settings';
 
 // Where the app lives under the base URL. Keep it here only.
@@ -81,8 +81,9 @@ export async function addTopic(page: Page, text: string): Promise<void> {
 }
 
 // The visible banner holding some text. The page's live region repeats banner text for screen readers, so
-// `getByText(<banner text>)` matches both (and the region keeps the words after the banner goes), and a count of 0 or a
-// strict `toBeVisible` is wrong; this scopes to the banner itself.
+// `getByText(<banner text>)` matches both while the region still holds it (it is emptied 8 s after it speaks,
+// and a banner that clears may leave a recovery line), and a count of 0 or a strict `toBeVisible` is wrong; this scopes
+// to the banner itself.
 export function banner(page: Page, text: string): Locator {
   return page.locator('.rb-banner-text', { hasText: text });
 }
@@ -743,6 +744,13 @@ export async function forceSignals(page: Page, forced: Record<string, unknown>):
   await page.addInitScript((value) => window.sessionStorage.setItem('rb-e2e-force', value), JSON.stringify(forced));
 }
 
+// Sets the feedback hooks (src/app/feedback-hooks.ts) for this page from its next load on: `throwOnLoad` throws an uncaught
+// error as the app starts (`throwMessage` is its text), `connectionDelayMs` shortens the lost-network delay. Only `--mode e2e`
+// builds read the setting (key `rb-e2e-feedback` in the tab's sessionStorage).
+export async function forceFeedback(page: Page, hooks: { throwOnLoad?: boolean; throwMessage?: string; connectionDelayMs?: number }): Promise<void> {
+  await page.addInitScript((value) => window.sessionStorage.setItem('rb-e2e-feedback', value), JSON.stringify(hooks));
+}
+
 // Adds people to the meeting in this browser's storage until it holds `total`, so the next newcomer is refused.
 export async function fillMeeting(page: Page, total: number): Promise<void> {
   await page.evaluate(async (count) => {
@@ -768,3 +776,23 @@ export async function fillMeeting(page: Page, total: number): Promise<void> {
     db.close();
   }, total);
 }
+
+export type FeedbackStubMode = 'accept' | 'fail' | 'slow' | 'ratelimit';
+
+// The feedback stub's test routes (scripts/feedback-stub.mjs), served by the e2e preview only. `request` is a
+// Playwright APIRequestContext (the `request` fixture or `context.request`); the base URL is the test build's.
+export const feedbackStub = (request: APIRequestContext) => ({
+  /** The bodies the stub accepted, as the strings it received, oldest first. */
+  async received(): Promise<string[]> {
+    return ((await (await request.get('/__feedback')).json()) as { received: string[] }).received;
+  },
+  /** Makes the next valid reports end `accept` (202), `fail` (500), `slow` (202 after a few seconds) or `ratelimit` (429). */
+  async setMode(mode: FeedbackStubMode): Promise<void> {
+    const response = await request.post('/__feedback/mode', { data: { mode } });
+    if (!response.ok()) throw new Error(`The feedback stub refused mode ${mode}: ${response.status()}`);
+  },
+  /** Forgets the bodies and goes back to `accept`. Call it first in a test that reads the stub. */
+  async reset(): Promise<void> {
+    await request.delete('/__feedback');
+  },
+});

@@ -15,9 +15,17 @@ describe('meetingRows', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].kind).toBe('hosted');
   });
+  it('says only "Ended" when the stored end time gives no date', () => {
+    const ended = { ...joined('b', 1), endedAt: 8.64e15 + 1 };
+    expect(rowStatus(meetingRows([], [ended])[0])).toBe('Joined as Ana. Ended');
+  });
   it('says a joined meeting opens while the facilitator is running it', () => {
     expect(rowStatus(meetingRows([], [joined('b', 1)])[0])).toBe('Joined as Ana. Opens while the facilitator is running it');
     expect(rowStatus(meetingRows([board('a', 1)], [])[0])).toBe('Collecting topics');
+  });
+  it('says a joined meeting has ended, with its date, once the guest has seen it end', () => {
+    const ended = { ...joined('b', 1), endedAt: Date.UTC(2026, 9, 6, 12) };
+    expect(rowStatus(meetingRows([], [ended])[0])).toBe('Joined as Ana. Ended 6 Oct 2026');
   });
 });
 

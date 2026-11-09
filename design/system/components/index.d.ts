@@ -67,8 +67,12 @@ export interface QrPanelProps { children?: React.ReactNode; className?: string }
 export declare function QrPanel(props: QrPanelProps): React.ReactElement;
 
 /** A full-width message across the top of the board. One at a time; the highest priority wins. */
-export interface BannerProps { tone?: 'info' | 'warning' | 'error'; action?: { label: string; onClick: () => void }; children?: React.ReactNode; className?: string }
+export interface BannerProps { tone?: 'info' | 'warning' | 'error'; action?: { label: string; onClick: () => void }; /** A small ghost button beside the action, such as "Send feedback". */ secondAction?: { label: string; onClick: () => void }; children?: React.ReactNode; className?: string }
 export declare function Banner(props: BannerProps): React.ReactElement;
+
+/** Labelled rows as a definition list, with the exact JSON of what will be sent in a disclosure below. */
+export interface ReportListProps { rows: Array<{ label: string; value: string }>; json?: string; jsonSummary?: string; jsonLabel?: string; copyLabel?: string; onCopy?: () => void; className?: string }
+export declare function ReportList(props: ReportListProps): React.ReactElement;
 
 /** An on/off control with a label and an optional hint, as role="switch". */
 export interface SwitchProps { label: string; checked: boolean; onChange: (checked: boolean) => void; hint?: string | string[]; disabled?: boolean }
@@ -120,4 +124,4 @@ export declare function useMode(): Mode;
 declare global { interface Window { Retrobrew: {
   ModeSwitch: typeof ModeSwitch; Button: typeof Button; StateChip: typeof StateChip; Column: typeof Column; TopicCard: typeof TopicCard;
   VoteDots: typeof VoteDots; VoteBudget: typeof VoteBudget; DialTimer: typeof DialTimer; TimeUpVote: typeof TimeUpVote; TopicInput: typeof TopicInput;
-  AttendeeChip: typeof AttendeeChip; Badge: typeof Badge; Sheet: typeof Sheet; ConfirmDialog: typeof ConfirmDialog; QrPanel: typeof QrPanel; Banner: typeof Banner; Switch: typeof Switch; Segmented: typeof Segmented; OutcomeLine: typeof OutcomeLine; ActionBar: typeof ActionBar; ActionList: typeof ActionList; ColumnGroup: typeof ColumnGroup; Tabs: typeof Tabs; StatusStrip: typeof StatusStrip; EndedSummary: typeof EndedSummary; Select: typeof Select; setMode: typeof setMode; getMode: typeof getMode; useMode: typeof useMode } } }
+  AttendeeChip: typeof AttendeeChip; Badge: typeof Badge; Sheet: typeof Sheet; ConfirmDialog: typeof ConfirmDialog; QrPanel: typeof QrPanel; Banner: typeof Banner; ReportList: typeof ReportList; Switch: typeof Switch; Segmented: typeof Segmented; OutcomeLine: typeof OutcomeLine; ActionBar: typeof ActionBar; ActionList: typeof ActionList; ColumnGroup: typeof ColumnGroup; Tabs: typeof Tabs; StatusStrip: typeof StatusStrip; EndedSummary: typeof EndedSummary; Select: typeof Select; setMode: typeof setMode; getMode: typeof getMode; useMode: typeof useMode } } }

@@ -100,6 +100,9 @@ test('phones show a status strip and a tab per column, without switching tabs wh
     await ann.keyboard.press('ArrowRight');
     await expect(tab(ann, /^Discussed/)).toHaveAttribute('aria-selected', 'true');
     await expect(tab(ann, /^Discussed/)).toBeFocused();
+    // An empty column is text only, so its panel is in the Tab order itself: Tab from the tab reaches the panel.
+    await ann.keyboard.press('Tab');
+    await expect(ann.getByRole('tabpanel', { name: /^Discussed/ })).toBeFocused();
     await busy.click();
     await expect(tab(ann, /^Discussing/)).toHaveAttribute('aria-selected', 'true');
 

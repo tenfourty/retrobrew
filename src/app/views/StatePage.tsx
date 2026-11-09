@@ -3,7 +3,7 @@ import { ModeSwitch } from '../../ui/components';
 
 // The frame for screens without a board: joining, connecting, starting, and broken links. The wordmark links to the
 // landing page; leaving is safe here because no meeting is running on this page yet.
-export function StatePage(props: { children: ComponentChildren }) {
+export function StatePage(props: { children: ComponentChildren; footer?: ComponentChildren }) {
   return (
     <main className="state">
       <header className="rb-topbar state-top">
@@ -11,6 +11,7 @@ export function StatePage(props: { children: ComponentChildren }) {
         <ModeSwitch />
       </header>
       {props.children}
+      {props.footer}
     </main>
   );
 }

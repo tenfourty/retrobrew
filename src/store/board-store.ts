@@ -38,6 +38,9 @@ export interface JoinedRecord {
   link: string;
   name: string;
   joinedAt: number;
+  // When the meeting ended, once this device's page has seen the ended view. Optional, so records made before it
+  // (and meetings still running) read as before and the store needs no new version.
+  endedAt?: number;
 }
 
 // The device keeps this many joined meetings; the oldest go first.
@@ -84,7 +87,8 @@ function isJoinedRecord(x: unknown): x is JoinedRecord {
   if (typeof x !== 'object' || x === null) return false;
   const r = x as Record<string, unknown>;
   return typeof r.boardId === 'string' && typeof r.boardName === 'string' && typeof r.link === 'string'
-    && typeof r.name === 'string' && typeof r.joinedAt === 'number';
+    && typeof r.name === 'string' && typeof r.joinedAt === 'number'
+    && (r.endedAt === undefined || (typeof r.endedAt === 'number' && Number.isFinite(r.endedAt)));
 }
 
 export async function openStore(name = 'retrobrew'): Promise<BoardStore> {

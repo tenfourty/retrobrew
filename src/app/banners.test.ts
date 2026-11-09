@@ -73,3 +73,25 @@ describe('banners added after review', () => {
     expect(outcomeMs({ kind: 'movedOn' })).toBe(UNDO_MS);
   });
 });
+
+describe('the error banner', () => {
+  const calm = { connection: 'connected', saveFailed: false, overLimits: false, oversize: false } as const;
+
+  it("sits lowest among the host's faults, above the storage notice, and hides no more specific banner", () => {
+    expect(hostBanner({ ...calm, errorTrouble: true, storageNotice: true })).toEqual({ text: COPY.wentWrong, action: 'feedback' });
+    expect(hostBanner({ ...calm, errorTrouble: true, oversize: true })).toEqual({ text: COPY.oversize });
+    expect(hostBanner({ ...calm, errorTrouble: true, saveFailed: true })).toEqual({ text: COPY.saveFailed, action: 'backUp' });
+    expect(hostBanner({ connection: 'noRelays', saveFailed: false, overLimits: false, oversize: false, errorTrouble: true })).toEqual({ text: COPY.noRelays });
+  });
+
+  it('is lowest for a participant too, and an ended meeting does not hide it', () => {
+    expect(participantBanner({ ...quiet, errorTrouble: true })).toEqual({ text: COPY.wentWrong, action: 'feedback' });
+    expect(participantBanner({ ...quiet, connection: 'hostOffline', errorTrouble: true })).toEqual({ text: COPY.hostOffline });
+    expect(participantBanner({ ...quiet, ended: true, errorTrouble: true })).toEqual({ text: COPY.wentWrong, action: 'feedback' });
+    expect(participantBanner({ ...quiet, ended: true })).toBeNull();
+  });
+
+  it('avoids the word "error" for the person', () => {
+    expect(COPY.wentWrong).not.toMatch(/error/i);
+  });
+});

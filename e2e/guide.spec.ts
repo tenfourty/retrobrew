@@ -29,20 +29,6 @@ test('the guide works with JavaScript off', { tag: '@public' }, async ({ browser
   }
 });
 
-test('the guide carries its head metadata', { tag: '@public' }, async ({ page }) => {
-  await page.goto('/lean-coffee/');
-  await expect(page).toHaveTitle('How to run a Lean Coffee · Retrobrew');
-  await expect(page.locator('html')).toHaveAttribute('lang', 'en-GB');
-  const head = page.locator('head');
-  const description = 'A short guide to Lean Coffee meetings: collecting topics, voting, timeboxes and deciding when to move on, for facilitators and participants.';
-  await expect(head.locator('meta[name="description"]')).toHaveAttribute('content', description);
-  await expect(head.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://retrobrew.app/lean-coffee/');
-  await expect(head.locator('meta[property="og:url"]')).toHaveAttribute('content', 'https://retrobrew.app/lean-coffee/');
-  await expect(head.locator('meta[property="og:title"]')).toHaveAttribute('content', 'How to run a Lean Coffee');
-  await expect(head.locator('meta[property="og:description"]')).toHaveAttribute('content', description);
-  await expect(head.locator('meta[name="twitter:card"]')).toHaveAttribute('content', 'summary_large_image');
-});
-
 test('every control on the guide is a 44 px tap target at 360 px', { tag: '@public' }, async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 360, height: 740 } });
   const page = await context.newPage();
@@ -77,3 +63,11 @@ for (const mode of ['business', 'party']) {
     }
   });
 }
+
+test('guide step 6 warns about opening the meeting in a second browser', { tag: '@public' }, async ({ page }) => {
+  await page.goto('/lean-coffee/');
+  const step = page.getByRole('main').locator('p', { hasText: '6. Close.' });
+  await expect(step).toContainText(
+    'Open the file in a second browser only to carry on there after closing the first: if the meeting is open as facilitator in two browsers at once, both show a warning, and changes made in each will not match.',
+  );
+});

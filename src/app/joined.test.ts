@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { KeyValueStore } from './handoff';
 import { MESSAGES } from '../engine/messages';
-import { forgetJoined, JOINED_LIMIT, joinedName, joinRefusalText, joiningTitle, rememberJoined } from './joined';
+import { forgetJoined, JOINED_LIMIT, joinedName, joinRefusalText, joiningTitle, joinedRecordFor, rememberJoined } from './joined';
 
 // A meeting is its board ID and its facilitator's key: the same board ID under another key is another meeting.
 const m = (boardId: string, hostPub = 'host-key') => ({ boardId, hostPub });
@@ -79,5 +79,19 @@ describe('joiningTitle', () => {
   it('says nothing before an answer, or for a blank name', () => {
     expect(joiningTitle(undefined)).toBeNull();
     expect(joiningTitle('  ')).toBeNull();
+  });
+});
+
+describe('joinedRecordFor', () => {
+  const meeting = { boardId: 'b', boardName: 'Retro', link: 'https://x.test/app/#b', name: 'Ana' };
+  it('has no endedAt while the meeting runs, and when it is reopened', () => {
+    expect(joinedRecordFor(meeting, { phase: 'discussion', endedAt: null }, 5)).toEqual({ ...meeting, joinedAt: 5 });
+    expect(joinedRecordFor(meeting, { phase: 'topics', endedAt: 3 }, 5)).toEqual({ ...meeting, joinedAt: 5 });
+  });
+  it('keeps the host end time once the meeting has ended', () => {
+    expect(joinedRecordFor(meeting, { phase: 'ended', endedAt: 3 }, 5)).toEqual({ ...meeting, joinedAt: 5, endedAt: 3 });
+  });
+  it('falls back to now when the ended state has no end time', () => {
+    expect(joinedRecordFor(meeting, { phase: 'ended', endedAt: null }, 5)).toEqual({ ...meeting, joinedAt: 5, endedAt: 5 });
   });
 });

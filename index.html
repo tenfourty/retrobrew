@@ -140,10 +140,12 @@
           <summary>What do the relays see?</summary>
           <p>Messages always pass through public Nostr relays, and also go directly between devices where a direct connection works. Everything is encrypted with a key that sits in the part of the meeting link after the <code>#</code>, which browsers never send to a server, so the relays see IP addresses, timing and message sizes, but not what anyone wrote. A direct connection shows your IP address to the facilitator's device, and to a STUN server run by Cloudflare or Google that helps set it up.</p>
           <p>Hidden votes are hidden on screen, not cryptographically secret. The same goes for the vote on whether to keep going: Retrobrew never shows or stores who chose what, but everyone in a meeting shares its key, so an attendee who records the meeting's network traffic could work out who voted for which topic, and who chose what.</p>
+          <p>Everyone in a meeting connects through the same built-in relays. A modified copy of Retrobrew set up with other relays can't change that for the people who join, because the meeting link carries no relay choice.</p>
+          <p>Votes count per device, not per person, because there are no accounts: someone who joins from two devices gets a full set of votes on each.</p>
         </details>
         <details>
           <summary>What if the facilitator closes the tab?</summary>
-          <p>Attendees can still read the board, but nobody can change it until the facilitator opens the meeting again in the same browser, from "Your meetings". A running timer keeps going on the facilitator's clock, so if it runs out while they are away, time's up appears for everyone once they are back, and then everyone carries on. The same happens if the facilitator's phone locks, so Retrobrew asks it to stay awake while the meeting runs. A private window forgets the meeting when it closes. Browsers may clear saved meetings when space runs low, so Retrobrew reminds the facilitator to make a backup now and then. "Your meetings" also lists the meetings you joined on this device, so you can come back to one with a tap while the facilitator is running it, and each meeting has a Remove button if you want it off the list.</p>
+          <p>Attendees can still read the board, but nobody can change it until the facilitator opens the meeting again in the same browser, from "Your meetings". A running timer keeps going on the facilitator's clock, so if it runs out while they are away, time's up appears for everyone once they are back, and then everyone carries on. The same happens if the facilitator's phone locks, so Retrobrew asks it to stay awake while the meeting runs. A private window forgets the meeting when it closes. Browsers may clear saved meetings when space runs low, so Retrobrew reminds the facilitator to make a backup now and then. "Your meetings" also lists the meetings you joined on this device, so you can come back to one with a tap while the facilitator is running it (a meeting you saw end is marked as ended), and each meeting has a Remove button if you want it off the list.</p>
         </details>
         <details>
           <summary>Does it work on a work network or VPN?</summary>
@@ -151,7 +153,7 @@
         </details>
         <details>
           <summary>How many people can take part?</summary>
-          <p>Up to 60 people and 60 topics in one meeting. Very long topics or names in some scripts, such as Chinese or emoji, fill a meeting sooner, and Retrobrew says so when it happens. A typical meeting of 15 people and 30 topics uses about a quarter of the room. Lean Coffee works best for groups of about 5 to 15.</p>
+          <p>A meeting can have up to 50 people and 60 topics. Very long topics or names fill a meeting sooner, and Retrobrew says so when the meeting is full. A typical meeting of 15 people and 30 topics uses about a quarter of the room. Lean Coffee works best for groups of about 5 to 15.</p>
         </details>
         <details>
           <summary>Why is it free?</summary>

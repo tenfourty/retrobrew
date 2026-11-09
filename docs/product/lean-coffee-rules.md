@@ -10,7 +10,7 @@ The screens that show these rules are in [mvp-screens.md](mvp-screens.md). How c
 - **Identity.** A person is their device key: their ID is the fingerprint of the key that signs their messages. Commands are attributed to the signing key, never to the connection they arrived on.
 - **Roles.** The person who created the meeting is its `owner`. In the MVP nobody else can be made a facilitator, but the rules treat `owner` and `facilitator` alike and call both "facilitator". Everyone else is a `guest`. Someone with no attendee entry is treated as a guest: facilitator controls need an explicit role.
 - **Only people who have joined** can use any command other than `join`.
-- **Up to 60 attendees.** A join that would add a 61st person is refused. Someone already on the list can always rejoin.
+- **Up to 60 attendees** (stated capacity 50; see [Limits](#limits)). A join that would add a 61st person is refused. Someone already on the list can always rejoin.
 - **Joining after the end** is allowed, so latecomers can see the final board.
 - **A join that changes nothing** (same person, same name) is accepted but does not change the board's version (`seq`). Only the person who joined gets a reply.
 
@@ -52,14 +52,14 @@ The column IDs are `ideas`, `toDiscuss`, `discussing` and `discussed`. These inv
 | Topic length | 1 to 280 characters after trimming. Characters are Unicode code points, so an emoji counts as one. Line breaks are replaced by spaces before counting | `emptyTopic`, `topicTooLong` |
 | Topics on a board | 60, counting every column | `tooManyTopics` |
 | Board size | The full-refresh relay event stays at or under 44 KB (see the sync protocol's Size section). Checked on `addTopic`, on an `editTopic` that makes a topic longer, and on a `join` that adds someone or lengthens a name | `boardFull`, `meetingFullSize` |
-| Attendees | 60, the owner included | `meetingFull` |
+| Attendees | 60, the owner included (stated capacity 50; see below the table) | `meetingFull` |
 | Name | 60 characters, longer names are cut | `emptyName` if empty |
 | Meeting name | 80 characters, set at creation in the UI | Not a command |
 | Vote allowance | 3, 5, 8 or 10 per person | `badVoteAllowance`, `fewerVotes` |
 | Timebox | 1, 2, 3, 4, 5, 10, 15, 20 or 30 minutes | `badTimebox` |
 | Extension | 1 to 5 minutes | `badExtension` |
 
-Very long topics or names in some scripts, such as Chinese text or emoji, fill a board before it reaches 60 topics or 60 people; the size cap refuses the next topic or join and says so. A typical meeting (30 English topics, 15 people) uses about a quarter of the cap. Boards that break the limits, saved before them or in an imported file, are handled as described in [Boards over the limits](#boards-over-the-limits).
+The stated capacity is 50 people and 60 topics (measured: 50 people with 10-character names and 60 English topics of 60 characters is 40.8 KB, inside the 44 KB cap), for now; a later performance pass, once the features are complete, may raise it. The engine's hard limit is still 60 people and 60 topics, which is what the rules and messages below describe, but the size cap stops a meeting sooner: with live person IDs, 55 people with 10-character names and 60 English topics of 60 characters fit, 56 do not, and 60 people fit only with few topics. Longer topics or names, and scripts such as Chinese text or emoji, lower that further. This was never different: a full meeting of 60 and 60 has not fitted the cap since it was set (an earlier table measured it with short test IDs such as `guest-3`, which a live meeting does not have). The size cap refuses the next topic or join and says so. A typical meeting (30 English topics, 15 people) uses about a quarter of the cap. Boards that break the limits, saved before them or in an imported file, are handled as described in [Boards over the limits](#boards-over-the-limits).
 
 ## How commands are checked
 
@@ -166,7 +166,7 @@ Only one topic can be in Discussing. To pick another, the facilitator first fini
 
 ## Rehearsal boards
 
-- A board is a rehearsal board only if it was created from `/app/#start&rehearsal`. The `rehearsal` flag is set at creation and never changes. No button in the app leads there; only the link does.
+- A board is a rehearsal board only if it was created from `/app/#start&rehearsal`. The `rehearsal` flag is set at creation and never changes. The normal start form's "Try a quick rehearsal" link leads there (see `mvp-screens.md`, The app home), as does the link itself.
 - On a rehearsal board one timebox "minute" lasts **10 seconds** (`minuteMs = 10,000`), for timeboxes and extensions alike. A 5-minute timebox runs for 50 seconds.
 - **Use real minutes.** `discussTopic` and `restartTimer` accept `realMinutes: true`. On a rehearsal board it makes that timer use 60,000 ms minutes, and an extension of that timer uses real minutes too. On other boards the flag changes nothing.
 - Everything else about a rehearsal board follows the normal rules.
@@ -192,7 +192,7 @@ The host builds each person's view with `redactFor(state, viewerId)`, which alwa
 ### People
 
 - Everyone gets the attendee list (ID, name, role) and `online`: the attendees the host has heard from in the last 15 seconds. The host itself is always online.
-- A change in who is online doesn't change `seq` or save the board. It goes out with the next send, and on its own at most every 5 seconds.
+- A change in who is online doesn't change `seq` or save the board. Someone coming online goes out with the next coalesced flush, like any other change: about 150 ms later to people on a direct link, and in the next free relay slot (at least 500 ms after the last) to people on relays only (see `sync-protocol.md`, Coalescing and the send budget). Someone dropping out has no flush of its own: it goes out with the next send, at the latest the host's full refresh every 5 seconds.
 
 ## Saved boards from before the MVP
 
